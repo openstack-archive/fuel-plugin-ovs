@@ -1,0 +1,8 @@
+https://github.com/lingyu1/fuel-rpm/blob/master/centos/6.5/x86_64/Packages/dpdk-2.1.0-6.el6.x86_64.rpm?raw=true
+https://github.com/lingyu1/fuel-rpm/blob/master/centos/6.5/x86_64/Packages/dpdk-devel-2.1.0-6.el6.x86_64.rpm?raw=true
+https://github.com/lingyu1/fuel-rpm/blob/master/centos/6.5/x86_64/Packages/dpdk-tools-2.1.0-6.el6.x86_64.rpm?raw=true
+https://github.com/lingyu1/fuel-rpm/blob/master/centos/6.5/x86_64/Packages/kmod-openvswitch-2.4.90-1.el6.x86_64.rpm?raw=true
+https://github.com/lingyu1/fuel-rpm/blob/master/centos/6.5/x86_64/Packages/kmod-openvswitch-2.4.90-2.el6.x86_64.rpm?raw=true
+https://github.com/lingyu1/fuel-rpm/blob/master/centos/6.5/x86_64/Packages/openvswitch-2.4.90-1.el6.x86_64.rpm?raw=true
+https://github.com/lingyu1/fuel-rpm/blob/master/centos/6.5/x86_64/Packages/openvswitch-2.4.90-1.x86_64.rpm?raw=true
+
