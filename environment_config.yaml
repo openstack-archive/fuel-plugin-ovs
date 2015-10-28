@@ -1,0 +1,6 @@
+attributes:
+    metadata:
+      enabled: false
+      label: fuel-plugin-ovs
+      toggleable: true
+      weight: 70
