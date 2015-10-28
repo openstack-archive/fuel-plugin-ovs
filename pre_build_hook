@@ -1,0 +1,41 @@
+#!/bin/bash
+
+# Add here any the actions which are required before plugin build
+# like packages building, packages downloading from mirrors and so on.
+# The script should return 0 if there were no errors.
+set -eux
+
+BUILD_FOR=${BUILD_FOR:-centos ubuntu}
+DIR="$(dirname `readlink -f $0`)"
+
+INCLUDE_DEPENDENCIES=${INCLUDE_DEPENDENCIES:-true}
+
+function download_dependencies {
+  if [ "$INCLUDE_DEPENDENCIES" = true ]
+  then
+    wget --content-disposition -N -i  "${DIR}/ovs_package/${1}/dependencies.txt"
+  fi
+}
+
+
+function build_pkg {
+  case $1 in
+    centos)
+      pushd "${DIR}/repositories/${1}/"
+      download_dependencies ${1}
+      popd
+      ;;
+    ubuntu)
+      pushd "${DIR}/repositories/${1}/"
+      download_dependencies ${1}
+      popd
+      ;;
+    *) echo "Not supported system"; exit 1;;
+  esac
+}
+
+
+for system in $BUILD_FOR
+do
+  build_pkg $system
+done

@@ -1,0 +1,16 @@
+- id: ovs_install_controller
+  role: ['primary-controller']
+  stage: pre_deployment
+  type: puppet
+  parameters:
+    puppet_manifest: puppet/manifests/ovs-install-controller.pp
+    puppet_modules: puppet/modules:/etc/puppet/modules
+    timeout: 720
+- id: ovs_install_compute
+  role: ['compute']
+  stage: pre_deployment
+  type: puppet
+  parameters:
+    puppet_manifest: puppet/manifests/ovs-install-compute.pp
+    puppet_modules: puppet/modules:/etc/puppet/modules
+    timeout: 720
