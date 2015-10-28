@@ -1,0 +1,8 @@
+- id: ovs_install
+  role: '*'
+  stage: pre_deployment
+  type: puppet
+  parameters:
+    puppet_manifest: puppet/manifests/ovs-install.pp
+    puppet_modules: puppet/modules:/etc/puppet/modules
+    timeout: 720
