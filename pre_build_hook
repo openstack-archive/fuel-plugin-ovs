@@ -5,7 +5,7 @@
 # The script should return 0 if there were no errors.
 set -eux
 
-BUILD_FOR=${BUILD_FOR:-centos ubuntu}
+BUILD_FOR=${BUILD_FOR:-ubuntu}
 DIR="$(dirname `readlink -f $0`)"
 
 INCLUDE_DEPENDENCIES=${INCLUDE_DEPENDENCIES:-true}
