@@ -14,7 +14,7 @@ Requirements
 
 | Requirement                      | Version/Comment |
 |----------------------------------|-----------------|
-| Mirantis OpenStack compatibility | 6.1             |
+| Mirantis OpenStack compatibility | 7.0             |
 
 Recommendations
 ---------------
@@ -60,7 +60,7 @@ Openvswitch plugin installation
 
         id | name            | version | package_version
         ---|-----------------|---------|----------------
-        1  | fuel-plugin-ovs | 0.5.0   | 2.0.0
+        1  | fuel-plugin-ovs | 0.5.1   | 3.0.0
 
 8. Plugin is ready to use and can be enabled on the Settings tab of the Fuel web UI.
 
@@ -101,13 +101,6 @@ Known issues
 ------------
 
 None.
-
-Release Notes
--------------
-
-**0.5.0**
-
-* Initial release of the plugin. This is a beta version.
 
 
 Development

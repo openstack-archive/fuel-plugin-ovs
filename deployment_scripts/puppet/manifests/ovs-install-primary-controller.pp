@@ -1,39 +1,39 @@
 $fuel_settings = parseyaml(file('/etc/primary-controller.yaml'))
-$ovs_version = "2.4.90-1"
 if $operatingsystem == 'Ubuntu' {
-        package { 'openvswitch-datapath-dkms':
-                ensure => "${ovs_version}",
-        }
-        package { 'openvswitch-common':
-                ensure => "${ovs_version}",
-        }
-        package { 'openvswitch-switch':
-                ensure => "${ovs_version}",
-                require => Package['openvswitch-common','openvswitch-datapath-dkms'],
-        }
-} elsif $operatingsystem == 'CentOS' {
         if $fuel_settings['fuel-plugin-ovs']['use_dpdk'] {
-                package { 'openvswitch':
-                        ensure => "2.4.90-1.el6",
-                }
-                package { 'kmod-openvswitch':
-                        ensure => "2.4.90-2.el6",
-                }
-                package { 'dpdk':
-                        ensure => "2.1.0-6.el6",
-                }
-                package { 'dpdk-tools':
-                        ensure => "2.1.0-6.el6",
-                }
-                package { 'dpdk-devel':
-                        ensure => "2.1.0-6.el6",
-                }
-        } else {
-                package { 'openvswitch':
+		exec { "wget dpdk package":
+		        command => "wget http://10.20.0.2:8080/plugins/fuel-plugin-ovs-0.5/repositories/ubuntu/dpdk-install.tar.gz",
+		        path   => "/usr/bin:/usr/sbin:/bin:/sbin",
+		}
+		exec { "unzip dpdk package":
+		        command => "tar -xvzf /etc/fuel/plugins/fuel-plugin-ovs-0.5/dpdk-install.tar.gz",
+		        path   => "/usr/bin:/usr/sbin:/bin:/sbin",
+		}
+		exec { "install dpdk package":
+		        command => "/etc/fuel/plugins/fuel-plugin-ovs-0.5/dpdk-install/dpdk-install.sh",
+		        path   => "/usr/bin:/usr/sbin:/bin:/sbin",
+		}
+                package { 'openvswitch-datapath-dkms':
                         ensure => "2.4.90-1",
                 }
-                package { 'kmod-openvswitch':
-                        ensure => "2.4.90-1.el6",
+                package { 'openvswitch-common':
+                        ensure => "2.4.90-1",
                 }
-        }
+                package { 'openvswitch-switch':
+                        ensure => "2.4.90-1",
+                        require => Package['openvswitch-common','openvswitch-datapath-dkms'],
+                }
+	} else {
+                package { 'openvswitch-datapath-dkms':
+                        ensure => "2.4.90-1",
+                }
+                package { 'openvswitch-common':
+                        ensure => "2.4.90-1",
+                }
+                package { 'openvswitch-switch':
+                        ensure => "2.4.90-1",
+                        require => Package['openvswitch-common','openvswitch-datapath-dkms'],
+                }
+	}
+} elsif $operatingsystem == 'CentOS' {
 }
