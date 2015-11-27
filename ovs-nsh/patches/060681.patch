@@ -1,0 +1,1025 @@
+decapsulation-reencapsulation case.
+ 
+When VxLAN-GPE NSH packets are received and then resent to VxLAN-GPE NSH port.
+The decapsulation and encapsulation will be implemented. However, tunnel pop
+and tunnel push actions are very time-consuming when decapsulation and
+encapsulation.
+ 
+With this feature (options:tun_nodecap=true), tunnel port will parse the input
+tunnel packets, but the tunnel header will be kept. And the tunnel header can
+be modified by the set field actions. This feature can improve performance.
+ 
+Signed-off-by: Ricky Li <<A HREF="http://openvswitch.org/mailman/listinfo/dev">ricky.li at intel.com</A>>
+Signed-off-by: Mengke Liu <<A HREF="http://openvswitch.org/mailman/listinfo/dev">mengke.liu at intel.com</A>>
+---
+ datapath/linux/compat/include/linux/openvswitch.h |  23 +++++
+ lib/dpif-netdev.c                                 |  36 +++++++
+ lib/dpif.c                                        |   1 +
+ lib/netdev-bsd.c                                  |   1 +
+ lib/netdev-dpdk.c                                 |   1 +
+ lib/netdev-dummy.c                                |   1 +
+ lib/netdev-linux.c                                |   1 +
+ lib/netdev-provider.h                             |   4 +
+ lib/netdev-vport.c                                | 111 +++++++++++++++++++---
+ lib/netdev.c                                      |  24 +++++
+ lib/netdev.h                                      |   7 +-
+ lib/odp-execute.c                                 |   5 +
+ lib/odp-util.c                                    |  96 ++++++++++++++++++-
+ lib/odp-util.h                                    |   7 +-
+ lib/ofp-print.c                                   |   1 +
+ lib/packets.c                                     |  20 ++++
+ lib/packets.h                                     |   6 ++
+ ofproto/ofproto-dpif-sflow.c                      |   4 +
+ ofproto/ofproto-dpif-xlate.c                      |  50 ++++++++--
+ ofproto/tunnel.c                                  |  86 +++++++++++++++++
+ ofproto/tunnel.h                                  |   4 +
+ tests/tunnel.at                                   |  28 ++++++
+ 22 files changed, 495 insertions(+), 22 deletions(-)
+ 
+diff --git a/datapath/linux/compat/include/linux/openvswitch.h b/datapath/linux/compat/include/linux/openvswitch.h
+index aa5dfde..b8ac152 100644
+--- a/datapath/linux/compat/include/linux/openvswitch.h
++++ b/datapath/linux/compat/include/linux/openvswitch.h
+@@ -645,6 +645,27 @@ struct ovs_action_push_tnl {
+ 	uint32_t tnl_type;     /* For logging. */
+ 	uint8_t  header[TNL_PUSH_HEADER_SIZE];
+ };
++
++#define OVS_POP_SPEC_ACTION_NO_DECAP 2
++
++/*
++ * struct ovs_action_pop_tnl - %OVS_ACTION_ATTR_TUNNEL_POP_SPEC
++ * @tnl_port: To identify tunnel port to pass header info.
++ * @out_port: Physical port to send encapsulated packet.
++ * @header_len: Length of the header to be pushed.
++ * @tnl_type: This is only required to format this header.  Otherwise
++ * ODP layer can not parse %header.
++ * @header: Partial header for the tunnel. Specified pop action can use
++ * this header to build final header according to actual packet parameters.
++ */
++struct ovs_action_pop_tnl {
++    uint32_t tnl_port;
++    uint32_t out_port;
++    uint32_t header_len;
++    uint16_t tnl_type;     /* For logging. */
++    uint16_t pop_type;
++    uint8_t  header[TNL_PUSH_HEADER_SIZE];
++};
+ #endif
+ 
+ /**
+@@ -712,6 +733,8 @@ enum ovs_action_attr {
+ #ifndef __KERNEL__
+ 	OVS_ACTION_ATTR_TUNNEL_PUSH,   /* struct ovs_action_push_tnl*/
+ 	OVS_ACTION_ATTR_TUNNEL_POP,    /* u32 port number. */
++   OVS_ACTION_ATTR_TUNNEL_POP_SPEC, /* struct ovs_action_pop_tnl */
++
+ #endif
+ 	__OVS_ACTION_ATTR_MAX,	      /* Nothing past this will be accepted
+ 				       * from userspace. */
+diff --git a/lib/dpif-netdev.c b/lib/dpif-netdev.c
+index e6ba33f..07f05c4 100644
+--- a/lib/dpif-netdev.c
++++ b/lib/dpif-netdev.c
+@@ -3549,6 +3549,42 @@ dp_execute_cb(void *aux_, struct dp_packet **packets, int cnt,
+         }
+         break;
+ 
++       case OVS_ACTION_ATTR_TUNNEL_POP_SPEC:
++            if (*depth < MAX_RECIRC_DEPTH) {
++                const struct ovs_action_pop_tnl *data;
++                odp_port_t portno;
++
++                data = nl_attr_get(a);
++                portno = u32_to_odp(data->tnl_port);
++
++                p = dp_netdev_lookup_port(dp, portno);
++                if (p) {
++                    struct dp_packet *tnl_pkt[NETDEV_MAX_BURST];
++                    int err;
++
++                    if (!may_steal) {
++                       dp_netdev_clone_pkt_batch(tnl_pkt, packets, cnt);
++                       packets = tnl_pkt;
++                    }
++
++                    err = netdev_pop_header_spec(p->netdev, packets, cnt, data);
++                    if (!err) {
++
++                        for (i = 0; i < cnt; i++) {
++                            packets[i]->md.in_port.odp_port = portno;
++                        }
++
++                        (*depth)++;
++                        dp_netdev_input(pmd, packets, cnt);
++                        (*depth)--;
++                    } else {
++                        dp_netdev_drop_packets(tnl_pkt, cnt, !may_steal);
++                    }
++                    return;
++                }
++            }
++            break;
++
+     case OVS_ACTION_ATTR_USERSPACE:
+         if (!fat_rwlock_tryrdlock(&dp->upcall_rwlock)) {
+             const struct nlattr *userdata;
+diff --git a/lib/dpif.c b/lib/dpif.c
+index 9a67a24..bb2d519 100644
+--- a/lib/dpif.c
++++ b/lib/dpif.c
+@@ -1100,6 +1100,7 @@ dpif_execute_helper_cb(void *aux_, struct dp_packet **packets, int cnt,
+     case OVS_ACTION_ATTR_OUTPUT:
+     case OVS_ACTION_ATTR_TUNNEL_PUSH:
+     case OVS_ACTION_ATTR_TUNNEL_POP:
++    case OVS_ACTION_ATTR_TUNNEL_POP_SPEC:
+     case OVS_ACTION_ATTR_USERSPACE:
+     case OVS_ACTION_ATTR_RECIRC: {
+         struct dpif_execute execute;
+diff --git a/lib/netdev-bsd.c b/lib/netdev-bsd.c
+index 60e5615..001e888 100644
+--- a/lib/netdev-bsd.c
++++ b/lib/netdev-bsd.c
+@@ -1560,6 +1560,7 @@ netdev_bsd_update_flags(struct netdev *netdev_, enum netdev_flags off,
+     NULL, /* build header */                         \
+     NULL, /* push header */                          \
+     NULL, /* pop header */                           \
++    NULL, /* pop specific header */                  \
+     NULL, /* get_numa_id */                          \
+     NULL, /* set_multiq */                           \
+                                                      \
+diff --git a/lib/netdev-dpdk.c b/lib/netdev-dpdk.c
+index b72a33b..4947013 100644
+--- a/lib/netdev-dpdk.c
++++ b/lib/netdev-dpdk.c
+@@ -2050,6 +2050,7 @@ unlock_dpdk:
+     NULL,                       /* build header */            \
+     NULL,                       /* push header */             \
+     NULL,                       /* pop header */              \
++    NULL,                       /* pop specific header */     \
+     netdev_dpdk_get_numa_id,    /* get_numa_id */             \
+     MULTIQ,                     /* set_multiq */              \
+                                                               \
+diff --git a/lib/netdev-dummy.c b/lib/netdev-dummy.c
+index 76815c2..2f44901 100644
+--- a/lib/netdev-dummy.c
++++ b/lib/netdev-dummy.c
+@@ -1098,6 +1098,7 @@ static const struct netdev_class dummy_class = {
+     NULL,                       /* build header */
+     NULL,                       /* push header */
+     NULL,                       /* pop header */
++    NULL,                       /* pop specific header */
+     NULL,                       /* get_numa_id */
+     NULL,                       /* set_multiq */
+ 
+diff --git a/lib/netdev-linux.c b/lib/netdev-linux.c
+index 584e804..79f47f3 100644
+--- a/lib/netdev-linux.c
++++ b/lib/netdev-linux.c
+@@ -2790,6 +2790,7 @@ netdev_linux_update_flags(struct netdev *netdev_, enum netdev_flags off,
+     NULL,                       /* build header */              \
+     NULL,                       /* push header */               \
+     NULL,                       /* pop header */                \
++    NULL,                       /* pop specific header */       \
+     NULL,                       /* get_numa_id */               \
+     NULL,                       /* set_multiq */                \
+                                                                 \
+diff --git a/lib/netdev-provider.h b/lib/netdev-provider.h
+index a33bb3b..e163376 100644
+--- a/lib/netdev-provider.h
++++ b/lib/netdev-provider.h
+@@ -271,6 +271,10 @@ struct netdev_class {
+      * for further processing. */
+     int (*pop_header)(struct dp_packet *packet);
+ 
++    /* Pop tunnel header from packet with specific actions */
++    int  (*pop_header_spec)(struct dp_packet *packet,
++                            const struct ovs_action_pop_tnl *data);
++
+     /* Returns the id of the numa node the 'netdev' is on.  If there is no
+      * such info, returns NETDEV_NUMA_UNSPEC. */
+     int (*get_numa_id)(const struct netdev *netdev);
+diff --git a/lib/netdev-vport.c b/lib/netdev-vport.c
+index a0a4da2..d926c00 100644
+--- a/lib/netdev-vport.c
++++ b/lib/netdev-vport.c
+@@ -561,7 +561,13 @@ set_tunnel_config(struct netdev *dev_, const struct smap *args)
+             } else {
+                 tnl_cfg.ip_dst = in_addr.s_addr;
+             }
+-        } else if (!strcmp(node->key, "local_ip")) {
++        } else if (!strcmp(node->key, "tun_nodecap")) {
++            if (!strcmp(node->value, "true")) {
++                tnl_cfg.tun_nodecap = true;
++            } else {
++                tnl_cfg.tun_nodecap = false;
++            }
++        }else if (!strcmp(node->key, "local_ip")) {
+             struct in_addr in_addr;
+             if (!strcmp(node->value, "flow")) {
+                 tnl_cfg.ip_src_flow = true;
+@@ -878,6 +884,10 @@ get_tunnel_config(const struct netdev *dev, struct smap *args)
+         smap_add(args, "df_default", "false");
+     }
+ 
++    if (tnl_cfg.tun_nodecap) {
++        smap_add(args, "tun_nodecap", "true");
++    }
++
+     if (tnl_cfg.in_nsp_flow && tnl_cfg.out_nsp_flow) {
+         smap_add(args, "nsp", "flow");
+     } else if (tnl_cfg.in_nsp_present && tnl_cfg.out_nsp_present
+@@ -1536,6 +1546,80 @@ netdev_vxlan_pop_header(struct dp_packet *packet)
+ }
+ 
+ static int
++vxlan_extract_md_no_decap(struct dp_packet *packet)
++{
++    struct pkt_metadata *md = &packet->md;
++    struct flow_tnl *tnl = &md->tunnel;
++	struct ip_header *nh;
++    struct udp_header *udp;
++
++    memset(md, 0, sizeof *md);
++    if (VXLAN_HLEN > dp_packet_size(packet)) {
++        return EINVAL;;
++    }
++
++    udp = ip_extract_tnl_md(packet, tnl);
++    if (!udp) {
++        return EINVAL;;
++    }
++
++	/* TTL decrement */
++    nh = dp_packet_l3(packet);
++	if(nh->ip_ttl){
++		nh->ip_ttl = nh->ip_ttl - 1;
++	}
++
++    if (ntohs(udp->udp_dst) == VXGPE_DST_PORT) {
++
++        struct vxgpehdr *vxg = (struct vxgpehdr *) (udp + 1);
++
++        if (get_16aligned_be32(&vxg->vx_vni) & htonl(0xff)) {
++            VLOG_WARN_RL(&err_rl, "invalid vxlan-gpe vni=%#x\n",
++                ntohl(get_16aligned_be32(&vxg->vx_vni)));
++            return EINVAL;;
++        }
++
++        tnl->tp_src = udp->udp_src;
++        tnl->tp_dst = udp->udp_dst;
++
++        if (vxg->p == 0x01 && vxg->proto == VXG_P_NSH) {
++            struct nshhdr *nsh = (struct nshhdr *) (vxg + 1);
++
++            tnl->nsp = nsh->b.b2 << 8;
++            tnl->nsi = nsh->b.svc_idx;
++            tnl->nshc1 = nsh->c.nshc1;
++            tnl->nshc2 = nsh->c.nshc2;
++            tnl->nshc3 = nsh->c.nshc3;
++            tnl->nshc4 = nsh->c.nshc4;
++            tnl->flags |= FLOW_TNL_F_NSP;
++            tnl->flags |= FLOW_TNL_F_NSI;
++            tnl->flags |= FLOW_TNL_F_NSH_C1 | FLOW_TNL_F_NSH_C2 | \
++                        FLOW_TNL_F_NSH_C3 | FLOW_TNL_F_NSH_C4;
++            tnl->nsh_flags = NSH_TNL_F_NODECAP;
++        } else {
++            VLOG_WARN("Unsupported vxlan GPE + NSH format!");
++            return EINVAL;;
++        }
++
++    }
++
++    return 0;
++}
++
++
++static int
++netdev_vxlan_pop_header_spec(struct dp_packet *packet,
++                             const struct ovs_action_pop_tnl *data)
++{
++    if (data->pop_type == OVS_POP_SPEC_ACTION_NO_DECAP) {
++        return vxlan_extract_md_no_decap(packet);
++    }
++
++    return EINVAL;
++}
++
++
++static int
+ netdev_vxlan_build_header(const struct netdev *netdev,
+                           struct ovs_action_push_tnl *data,
+                           const struct flow *tnl_flow)
+@@ -1772,7 +1856,8 @@ netdev_vport_range(struct unixctl_conn *conn, int argc,
+ #define VPORT_FUNCTIONS(GET_CONFIG, SET_CONFIG,             \
+                         GET_TUNNEL_CONFIG, GET_STATUS,      \
+                         BUILD_HEADER,                       \
+-                        PUSH_HEADER, POP_HEADER)            \
++                        PUSH_HEADER, POP_HEADER,            \
++                        POP_HEADER_SPEC)                    \
+     NULL,                                                   \
+     netdev_vport_run,                                       \
+     netdev_vport_wait,                                      \
+@@ -1787,6 +1872,7 @@ netdev_vport_range(struct unixctl_conn *conn, int argc,
+     BUILD_HEADER,                                           \
+     PUSH_HEADER,                                            \
+     POP_HEADER,                                             \
++    POP_HEADER_SPEC,                                        \
+     NULL,                       /* get_numa_id */           \
+     NULL,                       /* set_multiq */            \
+                                                             \
+@@ -1840,13 +1926,13 @@ netdev_vport_range(struct unixctl_conn *conn, int argc,
+ 
+ 
+ 
+-#define TUNNEL_CLASS(NAME, DPIF_PORT, BUILD_HEADER, PUSH_HEADER, POP_HEADER)   \
++#define TUNNEL_CLASS(NAME, DPIF_PORT, BUILD_HEADER, PUSH_HEADER, POP_HEADER,POP_HEADER_SPEC)   \
+     { DPIF_PORT,                                                               \
+         { NAME, VPORT_FUNCTIONS(get_tunnel_config,                             \
+                                 set_tunnel_config,                             \
+                                 get_netdev_tunnel_config,                      \
+                                 tunnel_get_status,                             \
+-                                BUILD_HEADER, PUSH_HEADER, POP_HEADER) }}
++                                BUILD_HEADER, PUSH_HEADER, POP_HEADER, POP_HEADER_SPEC) }}
+ 
+ void
+ netdev_vport_tunnel_register(void)
+@@ -1855,17 +1941,18 @@ netdev_vport_tunnel_register(void)
+      * a port number to the end if one is necessary. */
+     static const struct vport_class vport_classes[] = {
+         TUNNEL_CLASS("geneve", "genev_sys", netdev_geneve_build_header,
+-                                            push_udp_header,
+-                                            netdev_geneve_pop_header),
++                                       push_udp_header,
++                                       netdev_geneve_pop_header, NULL),
+         TUNNEL_CLASS("gre", "gre_sys", netdev_gre_build_header,
+                                        netdev_gre_push_header,
+-                                       netdev_gre_pop_header),
+-        TUNNEL_CLASS("ipsec_gre", "gre_sys", NULL, NULL, NULL),
++                                       netdev_gre_pop_header,NULL),
++        TUNNEL_CLASS("ipsec_gre", "gre_sys", NULL, NULL, NULL,NULL),
+         TUNNEL_CLASS("vxlan", "vxlan_sys", netdev_vxlan_build_header,
+                                            netdev_vxlan_push_header,
+-                                           netdev_vxlan_pop_header),
+-        TUNNEL_CLASS("lisp", "lisp_sys", NULL, NULL, NULL),
+-        TUNNEL_CLASS("stt", "stt_sys", NULL, NULL, NULL),
++                                           netdev_vxlan_pop_header,
++                                           netdev_vxlan_pop_header_spec),
++        TUNNEL_CLASS("lisp", "lisp_sys", NULL, NULL, NULL,NULL),
++        TUNNEL_CLASS("stt", "stt_sys", NULL, NULL, NULL,NULL),
+     };
+     static struct ovsthread_once once = OVSTHREAD_ONCE_INITIALIZER;
+ 
+@@ -1891,6 +1978,6 @@ netdev_vport_patch_register(void)
+             { "patch", VPORT_FUNCTIONS(get_patch_config,
+                                        set_patch_config,
+                                        NULL,
+-                                       NULL, NULL, NULL, NULL) }};
++                                       NULL, NULL, NULL, NULL, NULL) }};
+     netdev_register_provider(&patch_class.netdev_class);
+ }
+diff --git a/lib/netdev.c b/lib/netdev.c
+index e3b70b1..884bc0e 100644
+--- a/lib/netdev.c
++++ b/lib/netdev.c
+@@ -796,6 +796,30 @@ netdev_push_header(const struct netdev *netdev,
+     return 0;
+ }
+ 
++
++int
++netdev_pop_header_spec(struct netdev *netdev,
++                       struct dp_packet **buffers, int cnt,
++                       const struct ovs_action_pop_tnl *data)
++{
++    int i;
++
++    if (!netdev->netdev_class->pop_header_spec) {
++        return -EINVAL;
++    }
++
++    for (i = 0; i < cnt; i++) {
++        int err;
++
++        err = netdev->netdev_class->pop_header_spec(buffers[i], data);
++        if (err) {
++            dp_packet_clear(buffers[i]);
++        }
++    }
++
++    return 0;
++}
++
+ /* Registers with the poll loop to wake up from the next call to poll_block()
+  * when the packet transmission queue has sufficient room to transmit a packet
+  * with netdev_send().
+diff --git a/lib/netdev.h b/lib/netdev.h
+index 4dadf1c..b30c932 100644
+--- a/lib/netdev.h
++++ b/lib/netdev.h
+@@ -72,6 +72,7 @@ struct in6_addr;
+ struct smap;
+ struct sset;
+ struct ovs_action_push_tnl;
++struct ovs_action_pop_tnl;
+ 
+ /* Network device statistics.
+  *
+@@ -181,6 +182,8 @@ struct netdev_tunnel_config {
+     bool out_nshc4_flow;
+     ovs_be32 out_nshc4;        /* outgoing NSH context c4 */
+ 
++    bool tun_nodecap;
++
+ };
+ 
+ void netdev_run(void);
+@@ -241,7 +244,9 @@ int netdev_push_header(const struct netdev *netdev,
+                        const struct ovs_action_push_tnl *data);
+ int netdev_pop_header(struct netdev *netdev, struct dp_packet **buffers,
+                       int cnt);
+-
++int netdev_pop_header_spec(struct netdev *netdev,
++                           struct dp_packet **buffers, int cnt,
++                           const struct ovs_action_pop_tnl *data);
+ /* Hardware address. */
+ int netdev_set_etheraddr(struct netdev *, const struct eth_addr mac);
+ int netdev_get_etheraddr(const struct netdev *, struct eth_addr *mac);
+diff --git a/lib/odp-execute.c b/lib/odp-execute.c
+index 54a43cd..2ecdabf 100644
+--- a/lib/odp-execute.c
++++ b/lib/odp-execute.c
+@@ -238,6 +238,9 @@ odp_execute_set_action(struct dp_packet *packet, const struct nlattr *a)
+ 
+     case OVS_KEY_ATTR_TUNNEL:
+         odp_set_tunnel_action(a, &md->tunnel);
++        if (md->tunnel.nsh_flags & NSH_TNL_F_NODECAP) {
++            packet_set_nsh(packet, &md->tunnel);
++        }
+         break;
+ 
+     case OVS_KEY_ATTR_SKB_MARK:
+@@ -474,6 +477,7 @@ requires_datapath_assistance(const struct nlattr *a)
+     case OVS_ACTION_ATTR_OUTPUT:
+     case OVS_ACTION_ATTR_TUNNEL_PUSH:
+     case OVS_ACTION_ATTR_TUNNEL_POP:
++    case OVS_ACTION_ATTR_TUNNEL_POP_SPEC:
+     case OVS_ACTION_ATTR_USERSPACE:
+     case OVS_ACTION_ATTR_RECIRC:
+         return true;
+@@ -609,6 +613,7 @@ odp_execute_actions(void *dp, struct dp_packet **packets, int cnt, bool steal,
+         case OVS_ACTION_ATTR_OUTPUT:
+         case OVS_ACTION_ATTR_TUNNEL_PUSH:
+         case OVS_ACTION_ATTR_TUNNEL_POP:
++        case OVS_ACTION_ATTR_TUNNEL_POP_SPEC:
+         case OVS_ACTION_ATTR_USERSPACE:
+         case OVS_ACTION_ATTR_RECIRC:
+         case OVS_ACTION_ATTR_UNSPEC:
+diff --git a/lib/odp-util.c b/lib/odp-util.c
+index 1696f77..190117f 100644
+--- a/lib/odp-util.c
++++ b/lib/odp-util.c
+@@ -103,6 +103,7 @@ odp_action_len(uint16_t type)
+     case OVS_ACTION_ATTR_OUTPUT: return sizeof(uint32_t);
+     case OVS_ACTION_ATTR_TUNNEL_PUSH: return ATTR_LEN_VARIABLE;
+     case OVS_ACTION_ATTR_TUNNEL_POP: return sizeof(uint32_t);
++    case OVS_ACTION_ATTR_TUNNEL_POP_SPEC: return ATTR_LEN_VARIABLE;
+     case OVS_ACTION_ATTR_USERSPACE: return ATTR_LEN_VARIABLE;
+     case OVS_ACTION_ATTR_PUSH_VLAN: return sizeof(struct ovs_action_push_vlan);
+     case OVS_ACTION_ATTR_POP_VLAN: return 0;
+@@ -551,6 +552,20 @@ format_odp_tnl_push_header(struct ds *ds, struct ovs_action_push_tnl *data)
+ }
+ 
+ static void
++format_odp_tnl_pop_spec_action(struct ds *ds, const struct nlattr *attr)
++{
++    struct ovs_action_pop_tnl *data;
++
++    data = (struct ovs_action_pop_tnl *) nl_attr_get(attr);
++
++    ds_put_format(ds, "tnl_pop_spec(tnl_port(%"PRIu32"),", data->tnl_port);
++    if (data->pop_type == OVS_POP_SPEC_ACTION_NO_DECAP) {
++        ds_put_format(ds, "pop_type=%"PRIu16")",
++                      OVS_POP_SPEC_ACTION_NO_DECAP);
++    }
++}
++
++static void
+ format_odp_tnl_push_action(struct ds *ds, const struct nlattr *attr)
+ {
+     struct ovs_action_push_tnl *data;
+@@ -586,6 +601,9 @@ format_odp_action(struct ds *ds, const struct nlattr *a)
+     case OVS_ACTION_ATTR_TUNNEL_POP:
+         ds_put_format(ds, "tnl_pop(%"PRIu32")", nl_attr_get_u32(a));
+         break;
++    case OVS_ACTION_ATTR_TUNNEL_POP_SPEC:
++        format_odp_tnl_pop_spec_action(ds, a);
++        break;
+     case OVS_ACTION_ATTR_TUNNEL_PUSH:
+         format_odp_tnl_push_action(ds, a);
+         break;
+@@ -1029,6 +1047,35 @@ ovs_parse_tnl_push(const char *s, struct ovs_action_push_tnl *data)
+ }
+ 
+ static int
++ovs_parse_tnl_pop_spec(const char *s, struct ovs_action_pop_tnl *data)
++{
++    struct eth_header *eth;
++    struct nshhdr *nsh;
++    uint32_t tnl_type = 0, header_len = 0;
++    uint16_t dl_type;
++    ovs_be32 nsp, nshc1, nshc2, nshc3, nshc4;
++    uint8_t nsi;
++    int n = 0;
++    if (!ovs_scan_len(s, &n, "tnl_pop_spec(tnl_port(%"SCNi32"),",
++                         &data->tnl_port)) {
++        return -EINVAL;
++    }
++
++    if (!ovs_scan_len(s, &n, "pop_type=%"SCNi16")",
++                         &data->pop_type)) {
++        return -EINVAL;
++    }
++
++    if (data->pop_type == OVS_POP_SPEC_ACTION_NO_DECAP) {
++        return n;
++    } else {
++        return -EINVAL;
++    }
++
++    return n;
++}
++
++static int
+ parse_odp_action(const char *s, const struct simap *port_names,
+                  struct ofpbuf *actions)
+ {
+@@ -1186,6 +1233,22 @@ parse_odp_action(const char *s, const struct simap *port_names,
+     }
+ 
+     {
++        struct ovs_action_pop_tnl data;
++        int n;
++
++        if (ovs_scan(s, "tnl_pop_spec(tnl_port(%"SCNi32"),", &(data.tnl_port))) {
++            memset(&data, 0, sizeof data);
++            n = ovs_parse_tnl_pop_spec(s, &data);
++            if (n > 0) {
++                odp_put_tnl_pop_spec_action(actions, &data);
++                return n;
++            } else if (n < 0) {
++                return n;
++            }
++        }
++    }
++
++    {
+         struct ovs_action_push_tnl data;
+         int n;
+ 
+@@ -1461,7 +1524,9 @@ enum odp_key_fitness
+ odp_tun_key_from_attr(const struct nlattr *attr, bool udpif,
+                       struct flow_tnl *tun)
+ {
++    uint8_t nsh_flags=tun->nsh_flags;
+     memset(tun, 0, sizeof *tun);
++    tun->nsh_flags=nsh_flags;
+     return odp_tun_key_from_attr__(attr, NULL, 0, NULL, tun, udpif);
+ }
+ 
+@@ -4564,7 +4629,16 @@ odp_put_tnl_push_action(struct ofpbuf *odp_actions,
+     nl_msg_put_unspec(odp_actions, OVS_ACTION_ATTR_TUNNEL_PUSH, data, size);
+ }
+ 
+-
++void
++odp_put_tnl_pop_spec_action(struct ofpbuf *odp_actions,
++                        struct ovs_action_pop_tnl *data)
++{
++    int size = offsetof(struct ovs_action_pop_tnl, header);
++
++    size += data->header_len;
++    nl_msg_put_unspec(odp_actions, OVS_ACTION_ATTR_TUNNEL_POP_SPEC, data, size);
++}
++
+ /* The commit_odp_actions() function and its helpers. */
+ 
+ static void
+@@ -4617,6 +4691,26 @@ commit_odp_tunnel_action(const struct flow *flow, struct flow *base,
+     }
+ }
+ 
++/* If any of the flow key data that ODP actions can modify are different in
++ * 'base->tunnel' and 'flow->tunnel', appends a set_tunnel ODP action to
++ * 'odp_actions' that change the flow tunneling information in key from
++ * 'base->tunnel' into 'flow->tunnel', and then changes 'base->tunnel' in the
++ * same way.  In other words, operates the same as commit_odp_actions(), but
++ * only on tunneling information. */
++void
++commit_odp_tunnel_set_action(const struct flow_tnl *tunnel, struct flow_tnl *base,
++                             struct ofpbuf *odp_actions)
++{
++    /* A valid IPV4_TUNNEL must have non-zero ip_dst. */
++    if (tunnel->ip_dst) {
++
++        if (!memcmp(tunnel, base, sizeof *tunnel)) {
++            return;
++        }
++        odp_put_tunnel_action(tunnel, odp_actions);
++    }
++}
++
+ static bool
+ commit(enum ovs_key_attr attr, bool use_masked_set,
+        const void *key, void *base, void *mask, size_t size,
+diff --git a/lib/odp-util.h b/lib/odp-util.h
+index 9f8e741..b30c246 100644
+--- a/lib/odp-util.h
++++ b/lib/odp-util.h
+@@ -245,6 +245,10 @@ const char *odp_key_fitness_to_string(enum odp_key_fitness);
+ 
+ void commit_odp_tunnel_action(const struct flow *, struct flow *base,
+                               struct ofpbuf *odp_actions);
++void commit_odp_tunnel_set_action(const struct flow_tnl *tunnel,
++                                  struct flow_tnl *base,
++                                  struct ofpbuf *odp_actions);
++
+ void commit_masked_set_action(struct ofpbuf *odp_actions,
+                               enum ovs_key_attr key_type, const void *key,
+                               const void *mask, size_t key_size);
+@@ -308,7 +312,8 @@ size_t odp_put_userspace_action(uint32_t pid,
+                                 struct ofpbuf *odp_actions);
+ void odp_put_tunnel_action(const struct flow_tnl *tunnel,
+                            struct ofpbuf *odp_actions);
+-
+ void odp_put_tnl_push_action(struct ofpbuf *odp_actions,
+                              struct ovs_action_push_tnl *data);
++void odp_put_tnl_pop_spec_action(struct ofpbuf *odp_actions,
++                                 struct ovs_action_pop_tnl *data);
+ #endif /* odp-util.h */
+diff --git a/lib/ofp-print.c b/lib/ofp-print.c
+index d0c94ce..0684405 100644
+--- a/lib/ofp-print.c
++++ b/lib/ofp-print.c
+@@ -63,6 +63,7 @@ ofp_packet_to_string(const void *data, size_t len)
+     struct flow flow;
+     size_t l4_size;
+ 
++    buf.md.tunnel.nsh_flags=0;
+     dp_packet_use_const(&buf, data, len);
+     flow_extract(&buf, &flow);
+     flow_format(&ds, &flow);
+diff --git a/lib/packets.c b/lib/packets.c
+index a4d7854..d69d006 100644
+--- a/lib/packets.c
++++ b/lib/packets.c
+@@ -926,6 +926,26 @@ packet_set_nd(struct dp_packet *packet, const ovs_be32 target[4],
+     }
+ }
+ 
++void
++packet_set_nsh(struct dp_packet *packet, struct flow_tnl *tun_key)
++{
++    struct eth_header *eth;
++    struct nshhdr *nsh;
++
++    eth = (struct eth_header *) dp_packet_data(packet);
++    struct ip_header *ip = (struct ip_header *) (eth + 1);
++    struct udp_header *udp = (struct udp_header *) (ip + 1);
++    struct vxgpehdr *vxg = (struct vxgpehdr *) (udp + 1);
++
++    nsh = (struct nshhdr *) (vxg + 1);
++    nsh->b.b2 = tun_key->nsp >> 8;
++    nsh->b.svc_idx = tun_key->nsi;
++    nsh->c.nshc1 = tun_key->nshc1;
++    nsh->c.nshc2 = tun_key->nshc2;
++    nsh->c.nshc3 = tun_key->nshc3;
++    nsh->c.nshc4 = tun_key->nshc4;
++}
++
+ const char *
+ packet_tcp_flag_to_string(uint32_t flag)
+ {
+diff --git a/lib/packets.h b/lib/packets.h
+index 7f9ab98..87c955a 100644
+--- a/lib/packets.h
++++ b/lib/packets.h
+@@ -33,6 +33,7 @@
+ struct dp_packet;
+ struct ds;
+ 
++/* Tunnel information used in flow key and metadata. */
+ struct flow_tnl {
+     ovs_be32 ip_dst;
+     ovs_be32 ip_src;
+@@ -44,12 +45,14 @@ struct flow_tnl {
+     ovs_be16 tp_dst;
+     ovs_be16 gbp_id;
+     uint8_t  gbp_flags;
++    uint8_t nsh_flags;
+     uint8_t nsi;
+     ovs_be32 nsp;
+     ovs_be32 nshc1;
+     ovs_be32 nshc2;
+     ovs_be32 nshc3;
+     ovs_be32 nshc4;
++    uint8_t  pad1[7];        /* Pad to 64 bits. */
+     struct tun_metadata metadata;
+ };
+ 
+@@ -80,6 +83,8 @@ struct flow_tnl {
+ #define FLOW_TNL_F_NSH_C3 (1 << 9)
+ #define FLOW_TNL_F_NSH_C4 (1 << 10)
+ 
++#define NSH_TNL_F_NODECAP (1 << 1)
++
+ /* Returns an offset to 'src' covering all the meaningful fields in 'src'. */
+ static inline size_t
+ flow_tnl_size(const struct flow_tnl *src)
+@@ -1055,6 +1060,7 @@ void packet_set_udp_port(struct dp_packet *, ovs_be16 src, ovs_be16 dst);
+ void packet_set_sctp_port(struct dp_packet *, ovs_be16 src, ovs_be16 dst);
+ void packet_set_nd(struct dp_packet *, const ovs_be32 target[4],
+                    const struct eth_addr sll, const struct eth_addr tll);
++void packet_set_nsh(struct dp_packet *packet, struct flow_tnl *tun_key);
+ 
+ void packet_format_tcp_flags(struct ds *, uint16_t);
+ const char *packet_tcp_flag_to_string(uint32_t flag);
+diff --git a/ofproto/ofproto-dpif-sflow.c b/ofproto/ofproto-dpif-sflow.c
+index d479997..da8a9d1 100644
+--- a/ofproto/ofproto-dpif-sflow.c
++++ b/ofproto/ofproto-dpif-sflow.c
+@@ -1119,6 +1119,10 @@ dpif_sflow_read_actions(const struct flow *flow,
+ 	    sflow_actions->tunnel_err = true;
+ 	    break;
+ 
++    case OVS_ACTION_ATTR_TUNNEL_POP_SPEC:
++        sflow_actions->tunnel_err = true;
++        break;
++
+ 	case OVS_ACTION_ATTR_TUNNEL_PUSH:
+ 	    /* XXX: This actions appears to come with it's own
+ 	     * OUTPUT action, so should it be regarded as having
+diff --git a/ofproto/ofproto-dpif-xlate.c b/ofproto/ofproto-dpif-xlate.c
+index 9c64c24..71e255e 100644
+--- a/ofproto/ofproto-dpif-xlate.c
++++ b/ofproto/ofproto-dpif-xlate.c
+@@ -171,7 +171,7 @@ struct xlate_ctx {
+      * which might lead to an infinite loop.  This could happen easily
+      * if a tunnel is marked as 'ip_remote=flow', and the flow does not
+      * actually set the tun_dst field. */
+-    ovs_be32 orig_tunnel_ip_dst;
++    struct flow_tnl orig_tunnel;
+ 
+     /* Stack for the push and pop actions.  Each stack element is of type
+      * "union mf_subvalue". */
+@@ -2787,6 +2787,37 @@ build_tunnel_send(struct xlate_ctx *ctx, const struct xport *xport,
+     return 0;
+ }
+ 
++static int
++build_tunnel_pop(const struct xlate_ctx *ctx, odp_port_t tunnel_odp_port, struct flow *flow)
++{
++    const struct netdev_tunnel_config * cfg;
++
++    cfg = tnl_port_cfg(tunnel_odp_port, flow);
++
++    if (cfg) {
++        if (cfg->tun_nodecap) {
++            struct ovs_action_pop_tnl tnl_pop_data;
++            memset(&tnl_pop_data, 0, sizeof tnl_pop_data);
++
++            tnl_pop_data.tnl_port = odp_to_u32(tunnel_odp_port);
++            tnl_pop_data.pop_type = OVS_POP_SPEC_ACTION_NO_DECAP;
++            odp_put_tnl_pop_spec_action(ctx->odp_actions, &tnl_pop_data);
++
++        } else {
++            nl_msg_put_odp_port(ctx->odp_actions,
++                OVS_ACTION_ATTR_TUNNEL_POP,
++                tunnel_odp_port);
++        }
++
++    } else {
++        nl_msg_put_odp_port(ctx->odp_actions,
++            OVS_ACTION_ATTR_TUNNEL_POP,
++            tunnel_odp_port);
++    }
++
++    return 0;
++}
++
+ static void
+ xlate_commit_actions(struct xlate_ctx *ctx)
+ {
+@@ -2970,7 +3001,7 @@ compose_output_action__(struct xlate_ctx *ctx, ofp_port_t ofp_port,
+             xlate_report(ctx, "Tunneling decided against output");
+             goto out; /* restore flow_nw_tos */
+         }
+-        if (flow->tunnel.ip_dst == ctx->orig_tunnel_ip_dst) {
++        if (flow->tunnel.ip_dst == ctx->orig_tunnel.ip_dst) {
+             xlate_report(ctx, "Not tunneling to our own address");
+             goto out; /* restore flow_nw_tos */
+         }
+@@ -3011,6 +3042,10 @@ compose_output_action__(struct xlate_ctx *ctx, ofp_port_t ofp_port,
+     if (out_port != ODPP_NONE) {
+         xlate_commit_actions(ctx);
+ 
++        if (flow->tunnel.nsh_flags & NSH_TNL_F_NODECAP) {
++            commit_odp_tunnel_set_action(&flow->tunnel, &ctx->orig_tunnel,
++                                         ctx->odp_actions);
++        }
+         if (xr) {
+             struct ovs_action_hash *act_hash;
+ 
+@@ -3040,10 +3075,11 @@ compose_output_action__(struct xlate_ctx *ctx, ofp_port_t ofp_port,
+                     odp_tnl_port = tnl_port_map_lookup(flow, wc);
+                 }
+ 
+-                if (odp_tnl_port != ODPP_NONE) {
+-                    nl_msg_put_odp_port(ctx->odp_actions,
+-                                        OVS_ACTION_ATTR_TUNNEL_POP,
+-                                        odp_tnl_port);
++                if (odp_tnl_port != ODPP_NONE &&
++                !(flow->tunnel.nsh_flags & NSH_TNL_F_NODECAP)) {
++                    flow_tnl = flow->tunnel;
++                    build_tunnel_pop(ctx, odp_tnl_port, flow);
++                    flow->tunnel = flow_tnl;
+                 } else {
+                     /* Tunnel push-pop action is not compatible with
+                      * IPFIX action. */
+@@ -4791,7 +4827,7 @@ xlate_actions(struct xlate_in *xin, struct xlate_out *xout)
+         .xin = xin,
+         .xout = xout,
+         .base_flow = *flow,
+-        .orig_tunnel_ip_dst = flow->tunnel.ip_dst,
++        .orig_tunnel = flow->tunnel,
+         .xbridge = xbridge,
+         .stack = OFPBUF_STUB_INITIALIZER(stack_stub),
+         .rule = xin->rule,
+diff --git a/ofproto/tunnel.c b/ofproto/tunnel.c
+index 52e28fb..4606fb6 100644
+--- a/ofproto/tunnel.c
++++ b/ofproto/tunnel.c
+@@ -553,6 +553,55 @@ out:
+     return out_port;
+ }
+ 
++const struct netdev_tunnel_config *
++tnl_port_cfg(odp_port_t odp_port, struct flow *flow) OVS_EXCLUDED(rwlock)
++{
++    const struct netdev_tunnel_config *cfg = NULL;
++    struct tnl_port *tnl_port;
++
++    fat_rwlock_rdlock(&rwlock);
++    tnl_port = tnl_find_odp_port(odp_port);
++    if (!tnl_port) {
++        goto out;
++    }
++
++    cfg = netdev_get_tunnel_config(tnl_port->netdev);
++    ovs_assert(cfg);
++
++    if (!cfg->out_nsp_flow) {
++        flow->tunnel.nsp = cfg->out_nsp;
++    }
++    if (!cfg->out_nsi_flow) {
++        flow->tunnel.nsi = cfg->out_nsi;
++    }
++    if (!cfg->out_nshc1_flow) {
++        flow->tunnel.nshc1 = cfg->out_nshc1;
++    }
++    if (!cfg->out_nshc2_flow) {
++        flow->tunnel.nshc2 = cfg->out_nshc2;
++    }
++    if (!cfg->out_nshc3_flow) {
++        flow->tunnel.nshc3 = cfg->out_nshc3;
++    }
++    if (!cfg->out_nshc4_flow) {
++        flow->tunnel.nshc4 = cfg->out_nshc4;
++    }
++
++    flow->tunnel.flags = (cfg->dont_fragment ? FLOW_TNL_F_DONT_FRAGMENT : 0)
++        | (cfg->csum ? FLOW_TNL_F_CSUM : 0)
++        | (cfg->out_nsp_present ? FLOW_TNL_F_NSP : 0)
++        | (cfg->out_nsi_present ? FLOW_TNL_F_NSI : 0)
++        | (cfg->out_nshc1_present ? FLOW_TNL_F_NSH_C1 : 0)
++        | (cfg->out_nshc2_present ? FLOW_TNL_F_NSH_C2 : 0)
++        | (cfg->out_nshc3_present ? FLOW_TNL_F_NSH_C3 : 0)
++        | (cfg->out_nshc4_present ? FLOW_TNL_F_NSH_C4 : 0)
++        | (cfg->out_key_present ? FLOW_TNL_F_KEY : 0);
++
++out:
++    fat_rwlock_unlock(&rwlock);
++    return cfg;
++}
++
+ static uint32_t
+ tnl_hash(struct tnl_match *match)
+ {
+@@ -590,6 +639,43 @@ tnl_find_exact(struct tnl_match *match, struct hmap *map)
+     return NULL;
+ }
+ 
++static struct tnl_port *
++tnl_find_exact_odp_port(odp_port_t odp_port, struct hmap *map)
++    OVS_REQ_RDLOCK(rwlock)
++{
++    if (map) {
++        struct tnl_port *tnl_port;
++
++        HMAP_FOR_EACH (tnl_port, match_node, map) {
++            if (tnl_port->match.odp_port == odp_port) {
++                return tnl_port;
++            }
++        }
++    }
++    return NULL;
++}
++
++static struct tnl_port *
++tnl_find_odp_port(odp_port_t odp_port) OVS_REQ_RDLOCK(rwlock)
++{
++    int i;
++
++    for (i = 0; i < N_MATCH_TYPES; i++) {
++        struct hmap *map = tnl_match_maps[i];
++
++        if (map) {
++            struct tnl_port *tnl_port;
++
++            tnl_port = tnl_find_exact_odp_port(odp_port, map);
++            if (tnl_port) {
++                return tnl_port;
++            }
++        }
++    }
++
++    return NULL;
++}
++
+ /* Returns the tnl_port that is the best match for the tunnel data in 'flow',
+  * or NULL if no tnl_port matches 'flow'. */
+ static struct tnl_port *
+diff --git a/ofproto/tunnel.h b/ofproto/tunnel.h
+index 3e704fb..2b608ce 100644
+--- a/ofproto/tunnel.h
++++ b/ofproto/tunnel.h
+@@ -26,6 +26,7 @@
+  * header information from the kernel. */
+ 
+ struct ovs_action_push_tnl;
++struct ovs_action_pop_tnl;
+ struct ofport_dpif;
+ struct netdev;
+ 
+@@ -43,6 +44,9 @@ bool tnl_process_ecn(struct flow *);
+ odp_port_t tnl_port_send(const struct ofport_dpif *, struct flow *,
+                          struct flow_wildcards *wc);
+ 
++const struct netdev_tunnel_config *
++tnl_port_cfg(odp_port_t odp_port, struct flow *flow);
++
+ /* Returns true if 'flow' should be submitted to tnl_port_receive(). */
+ static inline bool
+ tnl_port_should_receive(const struct flow *flow)
+diff --git a/tests/tunnel.at b/tests/tunnel.at
+index 5ec5e6c..851afdc 100644
+--- a/tests/tunnel.at
++++ b/tests/tunnel.at
+@@ -645,6 +645,34 @@ AT_CHECK([tail -1 stdout], [0],
+ OVS_VSWITCHD_STOP(["/The Open vSwitch kernel module is probably not loaded/d"])
+ AT_CLEANUP
+ 
++AT_SETUP([tunnel - VXLAN-GPE NSH tun_nodecap - user space])
++OVS_VSWITCHD_START([add-port br0 p0 -- set Interface p0 type=dummy ofport_request=1 other-config:hwaddr=aa:55:aa:55:00:00])
++AT_CHECK([ovs-vsctl add-br int-br -- set bridge int-br datapath_type=dummy], [0])
++AT_CHECK([ovs-vsctl add-port int-br p1 -- set Interface p1 type=vxlan options:key=flow \
++        options:remote_ip=1.1.1.1 options:tun_nodecap=true options:nsi=flow options:nsp=flow options:nshc1=flow options:in_key=flow options:dst_port=4790 ofport_request=2])
++AT_CHECK([ovs-vsctl add-port int-br p2 -- set Interface p2 type=dummy ofport_request=3])
++
++AT_CHECK([ovs-appctl netdev-dummy/ip4addr br0 2.2.2.22/24], [0], [OK
++])
++AT_CHECK([ovs-appctl ovs/route/add 1.1.1.1/24 br0], [0], [OK
++])
++
++AT_CHECK([ovs-ofctl add-flow br0 action=normal])
++
++AT_CHECK([ovs-appctl tnl/ports/show |sort], [0], [dnl
++Listening ports:
++vxlan_sys_4790 (4790)
++])
++
++dnl remote_ip p0
++AT_CHECK([ovs-appctl ofproto/trace ovs-dummy 'in_port(1),eth(src=50:54:00:00:00:05,dst=aa:55:aa:55:00:00),eth_type(0x0800),ipv4(src=1.1.1.1,dst=2.2.2.22,proto=17,tos=0,ttl=64,frag=no),udp(src=8,dst=4790)'], [0], [stdout])
++AT_CHECK([tail -1 stdout], [0],
++  [Datapath actions: tnl_pop_spec(tnl_port(4790),pop_type=2)
++])
++
++OVS_VSWITCHD_STOP(["/The Open vSwitch kernel module is probably not loaded/d"])
++AT_CLEANUP
++
+ AT_SETUP([tunnel - Geneve metadata])
+ OVS_VSWITCHD_START([add-port br0 p1 -- set Interface p1 type=geneve \
+                     options:remote_ip=1.1.1.1 ofport_request=1 \
+--
+1.9.3
+ 

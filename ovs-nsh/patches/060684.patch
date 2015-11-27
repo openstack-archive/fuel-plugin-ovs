@@ -1,0 +1,151 @@
+decapsulation-reencapsulation case.
+ 
+When Ethernet NSH packets are received and then resent to Ethernet NSH port.
+The decapsulation and encapsulation will be implemented. However, tunnel pop
+and tunnel push actions are very time-consuming when decapsulation and
+encapsulation.
+ 
+With this feature (options:tun_nodecap=true), tunnel port will parse the input
+tunnel packets, but the tunnel header will be kept. And the tunnel header can
+be modified by the set field actions. This feature can improve performance.
+ 
+Signed-off-by: Ricky Li <<A HREF="http://openvswitch.org/mailman/listinfo/dev">ricky.li at intel.com</A>>
+Signed-off-by: Mengke Liu <<A HREF="http://openvswitch.org/mailman/listinfo/dev">mengke.liu at intel.com</A>>
+---
+ lib/netdev-vport.c | 43 ++++++++++++++++++++++++++++++++++++++++++-
+ lib/odp-util.c     |  3 ++-
+ lib/packets.c      | 10 +++++++++-
+ tests/tunnel.at    | 21 +++++++++++++++++++++
+ 4 files changed, 74 insertions(+), 3 deletions(-)
+ 
+diff --git a/lib/netdev-vport.c b/lib/netdev-vport.c
+index 0a3da8d..038f1e1 100644
+--- a/lib/netdev-vport.c
++++ b/lib/netdev-vport.c
+@@ -1865,6 +1865,47 @@ netdev_nsh_pop_header(struct dp_packet *packet)
+ }
+ 
+ static int
++netdev_nsh_pop_header_spec(struct dp_packet *packet,
++                           const struct ovs_action_pop_tnl *data)
++{
++    struct pkt_metadata *md = &packet->md;
++    struct flow_tnl *tnl = &md->tunnel;
++    struct eth_header *eth;
++    struct nshhdr *nsh;
++
++    if (data->pop_type == OVS_POP_SPEC_ACTION_NO_DECAP) {
++
++        pkt_metadata_init_tnl(md);
++        if (ETH_NSH_HLEN > dp_packet_size(packet)) {
++            return EINVAL;
++        }
++
++        eth = (struct eth_header *) dp_packet_data(packet);
++        memcpy(tnl->eth_dst.ea, eth->eth_dst.ea, ETH_ADDR_LEN);
++        memcpy(tnl->eth_src.ea, eth->eth_src.ea, ETH_ADDR_LEN);
++
++        nsh = (struct nshhdr *) (eth + 1);
++        tnl->nsp = nsh->b.b2 << 8;
++        tnl->nsi = nsh->b.svc_idx;
++        tnl->nshc1 = nsh->c.nshc1;
++        tnl->nshc2 = nsh->c.nshc2;
++        tnl->nshc3 = nsh->c.nshc3;
++        tnl->nshc4 = nsh->c.nshc4;
++        tnl->flags |= FLOW_TNL_F_NSP;
++        tnl->flags |= FLOW_TNL_F_NSI;
++        tnl->flags |= FLOW_TNL_F_NSH_C1 | FLOW_TNL_F_NSH_C2 | \
++                        FLOW_TNL_F_NSH_C3 | FLOW_TNL_F_NSH_C4;
++
++		tnl->nsh_flags = NSH_TNL_F_ETHERNET_PARSED | NSH_TNL_F_ETHERNET_PRST| NSH_TNL_F_NODECAP;
++        tnl->tun_len = ETH_NSH_HLEN;
++
++        return 0;
++    }
++
++    return EINVAL;
++}
++
++static int
+ netdev_nsh_build_header(const struct netdev *netdev,
+                         struct ovs_action_push_tnl *data,
+                         const struct flow *tnl_flow)
+@@ -2144,7 +2185,7 @@ netdev_vport_tunnel_register(void)
+         TUNNEL_CLASS("eth_nsh", "nsh_sys", netdev_nsh_build_header,
+                                            netdev_nsh_push_header,
+                                            netdev_nsh_pop_header,
+-                                           NULL),
++                                           netdev_nsh_pop_header_spec),
+     };
+     static struct ovsthread_once once = OVSTHREAD_ONCE_INITIALIZER;
+ 
+diff --git a/lib/odp-util.c b/lib/odp-util.c
+index c2af063..a87b3be 100644
+--- a/lib/odp-util.c
++++ b/lib/odp-util.c
+@@ -4837,7 +4837,8 @@ commit_odp_tunnel_set_action(const struct flow_tnl *tunnel, struct flow_tnl *bas
+                              struct ofpbuf *odp_actions)
+ {
+     /* A valid IPV4_TUNNEL must have non-zero ip_dst. */
+-    if (tunnel->ip_dst) {
++    if (tunnel->ip_dst ||
++		tunnel->nsh_flags & NSH_TNL_F_ETHERNET_PARSED) {
+ 
+         if (!memcmp(tunnel, base, sizeof *tunnel)) {
+             return;
+diff --git a/lib/packets.c b/lib/packets.c
+index 7dab4b5..14a19b1 100644
+--- a/lib/packets.c
++++ b/lib/packets.c
+@@ -934,7 +934,15 @@ packet_set_nsh(struct dp_packet *packet, struct flow_tnl *tun_key)
+ 
+     eth = (struct eth_header *) dp_packet_data(packet);
+ 
+-	if (tun_key->nsh_flags & NSH_TNL_F_VXLAN_PRST) {
++	if (tun_key->nsh_flags & NSH_TNL_F_ETHERNET_PRST) {
++        nsh = (struct nshhdr *) (eth + 1);
++        nsh->b.b2 = tun_key->nsp >> 8;
++        nsh->b.svc_idx = tun_key->nsi;
++        nsh->c.nshc1 = tun_key->nshc1;
++        nsh->c.nshc2 = tun_key->nshc2;
++        nsh->c.nshc3 = tun_key->nshc3;
++        nsh->c.nshc4 = tun_key->nshc4;
++	} else if (tun_key->nsh_flags & NSH_TNL_F_VXLAN_PRST) {
+         struct ip_header *ip = (struct ip_header *) (eth + 1);
+         struct udp_header *udp = (struct udp_header *) (ip + 1);
+         struct vxgpehdr *vxg = (struct vxgpehdr *) (udp + 1);
+diff --git a/tests/tunnel.at b/tests/tunnel.at
+index 19221fb..1bbf5e2 100644
+--- a/tests/tunnel.at
++++ b/tests/tunnel.at
+@@ -765,6 +765,27 @@ AT_CHECK([tail -1 stdout], [0],
+ OVS_VSWITCHD_STOP(["/The Open vSwitch kernel module is probably not loaded/d"])
+ AT_CLEANUP
+ 
++AT_SETUP([tunnel - ETHERNET NSH tun_nodecap - user space])
++OVS_VSWITCHD_START([add-port br0 p0 -- set Interface p0 type=dummy ofport_request=1 other-config:hwaddr=aa:55:aa:55:00:00])
++AT_CHECK([ovs-vsctl  add-port br0 p1 -- set interface p1 type=eth_nsh options:tun_nodecap=true options:remote_mac=00:00:00:11:11:22 \
++options:out_nsp=flow options:out_nsi=flow options:in_nshc1=flow options:in_nshc2=flow options:in_nshc3=flow options:in_nshc4=flow ofport_request=2], [0])
++
++AT_CHECK([ovs-ofctl add-flow br0 "priority=16, in_port=1, action=local"])
++
++AT_CHECK([ovs-appctl dpif/show | tail -n +3], [0], [dnl
++		br0 65534/100: (dummy)
++		p0 1/1: (dummy)
++		p1 2/2: (eth_nsh: in_nshc1=flow, in_nshc2=flow, in_nshc3=flow, in_nshc4=flow, out_nsi=flow, out_nsp=flow, remote_mac=00:00:00:11:11:22, tun_nodecap=true)
++])
++
++AT_CHECK([ovs-appctl ofproto/trace ovs-dummy 'in_port(1),eth(src=00:00:00:11:11:22,dst=50:54:00:00:00:07),eth_type(0x894f)'], [0], [stdout])
++AT_CHECK([tail -1 stdout], [0],
++  [Datapath actions: tnl_pop_spec(tnl_port(2),pop_type=2)
++])
++
++OVS_VSWITCHD_STOP(["/The Open vSwitch kernel module is probably not loaded/d"])
++AT_CLEANUP
++
+ AT_SETUP([tunnel - Geneve metadata])
+ OVS_VSWITCHD_START([add-port br0 p1 -- set Interface p1 type=geneve \
+                     options:remote_ip=1.1.1.1 ofport_request=1 \
+--
+1.9.3
+ 
