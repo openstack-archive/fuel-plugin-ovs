@@ -1,22 +1,37 @@
 #!/bin/bash
 
-# Add here any the actions which are required before plugin build
-# like packages building, packages downloading from mirrors and so on.
-# The script should return 0 if there were no errors.
 set -eux
 
 BUILD_FOR=${BUILD_FOR:-ubuntu}
 DIR="$(dirname `readlink -f $0`)"
 
+INCLUDE_DEPENDENCIES=${INCLUDE_DEPENDENCIES:-true}
+
+function download_dependencies {
+  if [ "$INCLUDE_DEPENDENCIES" = true ]
+  then
+    wget --content-disposition -N -i  "${DIR}/ovs_package/${1}/dependencies.txt"
+  fi
+}
+
 function build_pkg {
   case $1 in
     ubuntu)
+      pushd "${DIR}/repositories/${1}/"
+      download_dependencies ${1}
+      popd
       cd ${DIR}/ovs-nsh
       sudo docker build -t ovs-nsh .
       container_id=`sudo docker run -d ovs-nsh`
       sudo docker cp $container_id:/openvswitch/openvswitch-common_2.4.90-1_amd64.deb ${DIR}/repositories/ubuntu/
       sudo docker cp $container_id:/openvswitch/openvswitch-datapath-dkms_2.4.90-1_all.deb ${DIR}/repositories/ubuntu/
       sudo docker cp $container_id:/openvswitch/openvswitch-switch_2.4.90-1_amd64.deb ${DIR}/repositories/ubuntu/
+      sudo docker cp $container_id:/dpdk-2.1.0.tar.gz ${DIR}/repositories/ubuntu/dpdk-install/
+      sudo docker cp $container_id:/openvswitch-dpdk/openvswitch-common_2.4.91-1_amd64.deb ${DIR}/repositories/ubuntu/
+      sudo docker cp $container_id:/openvswitch-dpdk/openvswitch-datapath-dkms_2.4.91-1_all.deb ${DIR}/repositories/ubuntu/
+      sudo docker cp $container_id:/openvswitch-dpdk/openvswitch-switch_2.4.91-1_amd64.deb ${DIR}/repositories/ubuntu/
+      wget https://01.org/sites/default/files/downloads/intel-data-plane-performance-demonstrators/dppd-prox-v021.zip
+      mv dppd-prox-v021.zip ${DIR}/repositories/ubuntu/dppd-install/
       ;;
     *) echo "Not supported system"; exit 1;;
   esac
