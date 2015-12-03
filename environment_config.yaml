@@ -4,3 +4,8 @@ attributes:
       weight: 20
       value: false
       label: "Use dpdk"
+    use_dppd:
+      type: "checkbox"
+      weight: 20
+      value: false
+      label: "Use dppd"

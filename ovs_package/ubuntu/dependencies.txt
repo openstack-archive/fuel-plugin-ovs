@@ -1,0 +1,12 @@
+http://archive.ubuntu.com/ubuntu/pool/main/r/readline6/libreadline6-dev_6.3-4ubuntu2_amd64.deb
+http://archive.ubuntu.com/ubuntu/pool/main/r/readline6/libreadline-dev_6.3-4ubuntu2_amd64.deb
+http://archive.ubuntu.com/ubuntu/pool/main/l/lua5.2/liblua5.2-dev_5.2.3-1_amd64.deb
+http://archive.ubuntu.com/ubuntu/pool/main/libp/libpcap/libpcap0.8-dev_1.5.3-2_amd64.deb
+http://archive.ubuntu.com/ubuntu/pool/main/libp/libpcap/libpcap-dev_1.5.3-2_all.deb
+http://archive.ubuntu.com/ubuntu/pool/main/libb/libbsd/libbsd-dev_0.6.0-2ubuntu1_amd64.deb
+http://archive.ubuntu.com/ubuntu/pool/main/libe/libedit/libedit-dev_3.1-20130712-2_amd64.deb
+http://archive.ubuntu.com/ubuntu/pool/main/n/ncurses/libtinfo-dev_5.9+20140118-1ubuntu1_amd64.deb
+http://archive.ubuntu.com/ubuntu/pool/main/n/ncurses/libncurses5-dev_5.9+20140118-1ubuntu1_amd64.deb
+http://archive.ubuntu.com/ubuntu/pool/main/n/ncurses/libncursesw5-dev_5.9+20140118-1ubuntu1_amd64.deb
+https://01.org/sites/default/files/downloads/intel-data-plane-performance-demonstrators/dppd-prox-v021.zip
+http://archive.ubuntu.com/ubuntu/pool/main/p/pkg-config/pkg-config_0.26-1ubuntu4_amd64.deb
