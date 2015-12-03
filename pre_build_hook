@@ -1,8 +1,5 @@
 #!/bin/bash
 
-# Add here any the actions which are required before plugin build
-# like packages building, packages downloading from mirrors and so on.
-# The script should return 0 if there were no errors.
 set -eux
 
 BUILD_FOR=${BUILD_FOR:-ubuntu}
@@ -17,6 +14,24 @@ function build_pkg {
       sudo docker cp $container_id:/openvswitch/openvswitch-common_2.4.90-1_amd64.deb ${DIR}/repositories/ubuntu/
       sudo docker cp $container_id:/openvswitch/openvswitch-datapath-dkms_2.4.90-1_all.deb ${DIR}/repositories/ubuntu/
       sudo docker cp $container_id:/openvswitch/openvswitch-switch_2.4.90-1_amd64.deb ${DIR}/repositories/ubuntu/
+      cd ${DIR}/ovs-nsh-dpdk
+      sudo docker build -t ovs-nsh-dpdk .
+      container_id=`sudo docker run -d ovs-nsh-dpdk`
+      sudo docker cp $container_id:/dpdk-2.1.0.tar.gz ${DIR}/repositories/ubuntu/dpdk-install/
+      sudo docker cp $container_id:/openvswitch/openvswitch-common_2.4.91-1_amd64.deb ${DIR}/repositories/ubuntu/
+      sudo docker cp $container_id:/openvswitch/openvswitch-datapath-dkms_2.4.91-1_all.deb ${DIR}/repositories/ubuntu/
+      sudo docker cp $container_id:/openvswitch/openvswitch-switch_2.4.91-1_amd64.deb ${DIR}/repositories/ubuntu/
+      sudo cat << EOF > ${DIR}/repositories/ubuntu/dpdk-install/dpdk-install.sh
+      #!/bin/bash
+
+      set -eux
+      cd /etc/fuel/plugins/fuel-plugin-ovs-0.5/dpdk-install/;tar -xvzf dpdk-2.1.0.tar.gz
+      cd /etc/fuel/plugins/fuel-plugin-ovs-0.5/dpdk-install/dpdk-2.1.0; make install T=x86_64-native-linuxapp-gcc
+EOF
+      chmod +x ${DIR}/repositories/ubuntu/dpdk-install/dpdk-install.sh
+      cd ${DIR}/repositories/ubuntu/
+      tar -czf dpdk-install.tar.gz dpdk-install
+      sudo rm -rf dpdk-install/
       ;;
     *) echo "Not supported system"; exit 1;;
   esac

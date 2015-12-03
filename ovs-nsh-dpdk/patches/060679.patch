@@ -1,0 +1,3187 @@
+VxLAN-GPE NSH decapsulation and encapsulation implementation at data plane
+level in kernel space and rules related with NSH match and actions at control
+plane level.
+ 
+The VXLAN-GPE NSH type are enabled in this patch. The design is based on basic
+VxLAN implementation. The UDP port 4790 is used for VXLAN-GPE NSH type. When
+VxLAN-GPE NSH packets are received from VxLAN-GPE NSH port, the decapsulation
+will be implemented and the fields related with NSH will be parsed. When
+packets are sent to VxLAN-GPE NSH port, the encapsulation will be implemented
+according to the VxLAN-GPE NSH configuration and related rules.
+ 
+Notes:
+(1) port 4790 is for VxLAN-GPE NSH extension.
+(2) new options for VxLAN-GPE NSH: service path header(nsp, nsi) and context
+header with NSH MD-type 1(nshc1, nshc2, nshc3, nshc4). These fields have
+fixed/flow setting: fixed value indicates input value in related field must be
+fixed value detected by this port and output value in related field will be set
+as fixed value when encapsulation is implemented; flow value indicates the
+input value is checked by the openflow rule and output value is set by the
+openflow rule.
+(3) new related actions: Add 6 new actions for NSH set fields: set_nsp,
+set_nsi,set_nshc1,set_nshc1,set_nshc3,set_nshc4
+ 
+Signed-off-by: Pritesh Kothari <<A HREF="http://openvswitch.org/mailman/listinfo/dev">pritkoth at cisco.com</A>>
+Signed-off-by: Ricky Li <<A HREF="http://openvswitch.org/mailman/listinfo/dev">ricky.li at intel.com</A>>
+Signed-off-by: Mengke Liu <<A HREF="http://openvswitch.org/mailman/listinfo/dev">mengke.liu at intel.com</A>>
+---
+ datapath/flow.h                                   |  30 +-
+ datapath/flow_netlink.c                           |  70 ++++
+ datapath/linux/Modules.mk                         |   1 +
+ datapath/linux/compat/include/linux/openvswitch.h |   6 +
+ datapath/linux/compat/include/net/ip_tunnels.h    |   8 +
+ datapath/linux/compat/include/net/nsh.h           | 103 ++++++
+ datapath/linux/compat/include/net/vxlan.h         |  20 +-
+ datapath/linux/compat/vxlan.c                     |  97 +++++-
+ datapath/vport-geneve.c                           |   2 +-
+ datapath/vport-gre.c                              |   2 +-
+ datapath/vport-lisp.c                             |   2 +-
+ datapath/vport-stt.c                              |   2 +-
+ datapath/vport-vxlan.c                            |  15 +-
+ datapath/vport.c                                  |   5 +
+ lib/flow.c                                        |  48 +++
+ lib/match.c                                       |  90 ++++++
+ lib/match.h                                       |  14 +
+ lib/meta-flow.c                                   | 135 ++++++++
+ lib/meta-flow.h                                   | 102 ++++++
+ lib/netdev-vport.c                                | 289 ++++++++++++++++-
+ lib/netdev.h                                      |  49 +++
+ lib/nx-match.c                                    |   6 +
+ lib/odp-util.c                                    | 147 ++++++++-
+ lib/odp-util.h                                    |   8 +-
+ lib/ofp-actions.c                                 | 353 +++++++++++++++++++-
+ lib/ofp-actions.h                                 |  48 +++
+ lib/ofp-parse.c                                   |  13 +
+ lib/ofp-parse.h                                   |   1 +
+ lib/packets.h                                     |  16 +-
+ ofproto/ofproto-dpif-xlate.c                      |  31 +-
+ ofproto/tunnel.c                                  | 374 +++++++++++++++++++---
+ ofproto/tunnel.h                                  |   1 -
+ tests/ofproto.at                                  |  10 +-
+ tests/tunnel.at                                   | 115 +++++++
+ 34 files changed, 2126 insertions(+), 87 deletions(-)
+ create mode 100644 datapath/linux/compat/include/net/nsh.h
+ 
+diff --git a/datapath/flow.h b/datapath/flow.h
+index 2433436..78774a1 100644
+--- a/datapath/flow.h
++++ b/datapath/flow.h
+@@ -39,9 +39,18 @@ struct sk_buff;
+ #define OVS_TUNNEL_KEY_SIZE					\
+ 	(offsetof(struct ovs_key_ipv4_tunnel, tp_dst) +		\
+ 	 FIELD_SIZEOF(struct ovs_key_ipv4_tunnel, tp_dst))
++/* Used for masking nsp and nsi values in field nsp below */
++#define NSH_M_NSP   0xFFFFFF00
++#define NSH_M_NSI   0x000000FF
++
+ 
+ struct ovs_key_ipv4_tunnel {
+ 	__be64 tun_id;
++    __be32 nsp;      /* it contains (nsp - 24 bits | nsi - 8 bits) here */
++    __be32 nshc1;    /* NSH context headers */
++    __be32 nshc2;
++    __be32 nshc3;
++    __be32 nshc4;
+ 	__be32 ipv4_src;
+ 	__be32 ipv4_dst;
+ 	__be16 tun_flags;
+@@ -72,11 +81,21 @@ static inline void __ovs_flow_tun_info_init(struct ovs_tunnel_info *tun_info,
+ 					    __be16 tp_src,
+ 					    __be16 tp_dst,
+ 					    __be64 tun_id,
++                        __be32 nsp,
++                        __be32 nshc1,
++                        __be32 nshc2,
++                        __be32 nshc3,
++                        __be32 nshc4,
+ 					    __be16 tun_flags,
+ 					    const void *opts,
+ 					    u8 opts_len)
+ {
+ 	tun_info->tunnel.tun_id = tun_id;
++    tun_info->tunnel.nsp = nsp;
++    tun_info->tunnel.nshc1 = nshc1;
++    tun_info->tunnel.nshc2 = nshc2;
++    tun_info->tunnel.nshc3 = nshc3;
++    tun_info->tunnel.nshc4 = nshc4;
+ 	tun_info->tunnel.ipv4_src = saddr;
+ 	tun_info->tunnel.ipv4_dst = daddr;
+ 	tun_info->tunnel.ipv4_tos = tos;
+@@ -104,6 +123,11 @@ static inline void ovs_flow_tun_info_init(struct ovs_tunnel_info *tun_info,
+ 					  __be16 tp_src,
+ 					  __be16 tp_dst,
+ 					  __be64 tun_id,
++                      __be32 nsp,
++                      __be32 nshc1,
++                      __be32 nshc2,
++                      __be32 nshc3,
++                      __be32 nshc4,
+ 					  __be16 tun_flags,
+ 					  const void *opts,
+ 					  u8 opts_len)
+@@ -111,8 +135,10 @@ static inline void ovs_flow_tun_info_init(struct ovs_tunnel_info *tun_info,
+ 	__ovs_flow_tun_info_init(tun_info, iph->saddr, iph->daddr,
+ 				 iph->tos, iph->ttl,
+ 				 tp_src, tp_dst,
+-				 tun_id, tun_flags,
+-				 opts, opts_len);
++                 tun_id, nsp,
++                 nshc1, nshc2,
++                 nshc3, nshc4,
++                 tun_flags,opts, opts_len);
+ }
+ 
+ #define OVS_SW_FLOW_KEY_METADATA_SIZE			\
+diff --git a/datapath/flow_netlink.c b/datapath/flow_netlink.c
+index d835a00..c979156 100644
+--- a/datapath/flow_netlink.c
++++ b/datapath/flow_netlink.c
+@@ -51,6 +51,8 @@
+ #include "flow_netlink.h"
+ #include "vport-vxlan.h"
+ 
++#define NSH_M_NSI 0x000000FF
++
+ struct ovs_len_tbl {
+ 	int len;
+ 	const struct ovs_len_tbl *next;
+@@ -269,6 +271,12 @@ size_t ovs_tun_key_attr_size(void)
+ 		+ nla_total_size(0)    /* OVS_TUNNEL_KEY_ATTR_DONT_FRAGMENT */
+ 		+ nla_total_size(0)    /* OVS_TUNNEL_KEY_ATTR_CSUM */
+ 		+ nla_total_size(0)    /* OVS_TUNNEL_KEY_ATTR_OAM */
++        + nla_total_size(4)    /* OVS_TUNNEL_KEY_ATTR_NSP */
++        + nla_total_size(1)    /* OVS_TUNNEL_KEY_ATTR_NSI */
++        + nla_total_size(4)    /* OVS_TUNNEL_KEY_ATTR_NC1 */
++        + nla_total_size(4)    /* OVS_TUNNEL_KEY_ATTR_NC2 */
++        + nla_total_size(4)    /* OVS_TUNNEL_KEY_ATTR_NC3 */
++        + nla_total_size(4)    /* OVS_TUNNEL_KEY_ATTR_NC4 */
+ 		+ nla_total_size(256)  /* OVS_TUNNEL_KEY_ATTR_GENEVE_OPTS */
+ 		/* OVS_TUNNEL_KEY_ATTR_VXLAN_OPTS is mutually exclusive with
+ 		 * OVS_TUNNEL_KEY_ATTR_GENEVE_OPTS and covered by it.
+@@ -316,6 +324,12 @@ static const struct ovs_len_tbl ovs_tunnel_key_lens[OVS_TUNNEL_KEY_ATTR_MAX + 1]
+ 	[OVS_TUNNEL_KEY_ATTR_TP_SRC]	    = { .len = sizeof(u16) },
+ 	[OVS_TUNNEL_KEY_ATTR_TP_DST]	    = { .len = sizeof(u16) },
+ 	[OVS_TUNNEL_KEY_ATTR_OAM]	    = { .len = 0 },
++    [OVS_TUNNEL_KEY_ATTR_NSP] = sizeof(u32),
++    [OVS_TUNNEL_KEY_ATTR_NSI] = 1,
++    [OVS_TUNNEL_KEY_ATTR_NSH_C1] = sizeof(u32),
++    [OVS_TUNNEL_KEY_ATTR_NSH_C2] = sizeof(u32),
++    [OVS_TUNNEL_KEY_ATTR_NSH_C3] = sizeof(u32),
++    [OVS_TUNNEL_KEY_ATTR_NSH_C4] = sizeof(u32),
+ 	[OVS_TUNNEL_KEY_ATTR_GENEVE_OPTS]   = { .len = OVS_ATTR_VARIABLE },
+ 	[OVS_TUNNEL_KEY_ATTR_VXLAN_OPTS]    = { .len = OVS_ATTR_NESTED,
+ 						.next = ovs_vxlan_ext_key_lens },
+@@ -543,6 +557,12 @@ static int ipv4_tun_from_nlattr(const struct nlattr *attr,
+ 	bool ttl = false;
+ 	__be16 tun_flags = 0;
+ 	int opts_type = 0;
++    __be32 nsp = 0;
++    __be32 nshc1 = 0;
++    __be32 nshc2 = 0;
++    __be32 nshc3 = 0;
++    __be32 nshc4 = 0;
++
+ 
+ 	nla_for_each_nested(a, attr, rem) {
+ 		int type = nla_type(a);
+@@ -601,6 +621,30 @@ static int ipv4_tun_from_nlattr(const struct nlattr *attr,
+ 		case OVS_TUNNEL_KEY_ATTR_OAM:
+ 			tun_flags |= TUNNEL_OAM;
+ 			break;
++        case OVS_TUNNEL_KEY_ATTR_NSP:
++            nsp |= htonl(be32_to_cpu(nla_get_be32(a)) << 8);
++            tun_flags |= TUNNEL_NSP;
++            break;
++        case OVS_TUNNEL_KEY_ATTR_NSI:
++            nsp |= htonl(nla_get_u8(a));
++            tun_flags |= TUNNEL_NSI;
++            break;
++        case OVS_TUNNEL_KEY_ATTR_NSH_C1:
++            nshc1 = nla_get_be32(a);
++            tun_flags |= TUNNEL_NSHC;
++            break;
++        case OVS_TUNNEL_KEY_ATTR_NSH_C2:
++            nshc2 = nla_get_be32(a);
++            tun_flags |= TUNNEL_NSHC;
++            break;
++        case OVS_TUNNEL_KEY_ATTR_NSH_C3:
++            nshc3 = nla_get_be32(a);
++            tun_flags |= TUNNEL_NSHC;
++            break;
++        case OVS_TUNNEL_KEY_ATTR_NSH_C4:
++            nshc4 = nla_get_be32(a);
++            tun_flags |= TUNNEL_NSHC;
++            break;
+ 		case OVS_TUNNEL_KEY_ATTR_GENEVE_OPTS:
+ 			if (opts_type) {
+ 				OVS_NLERR(log, "Multiple metadata blocks provided");
+@@ -634,6 +678,11 @@ static int ipv4_tun_from_nlattr(const struct nlattr *attr,
+ 		}
+ 	}
+ 
++    SW_FLOW_KEY_PUT(match, tun_key.nsp, nsp, is_mask);
++    SW_FLOW_KEY_PUT(match, tun_key.nshc1, nshc1, is_mask);
++    SW_FLOW_KEY_PUT(match, tun_key.nshc2, nshc2, is_mask);
++    SW_FLOW_KEY_PUT(match, tun_key.nshc3, nshc3, is_mask);
++    SW_FLOW_KEY_PUT(match, tun_key.nshc4, nshc4, is_mask);
+ 	SW_FLOW_KEY_PUT(match, tun_key.tun_flags, tun_flags, is_mask);
+ 
+ 	if (rem > 0) {
+@@ -678,6 +727,9 @@ static int __ipv4_tun_to_nlattr(struct sk_buff *skb,
+ 				const struct ovs_key_ipv4_tunnel *output,
+ 				const void *tun_opts, int swkey_tun_opts_len)
+ {
++    __be32 nsp = cpu_to_be32(ntohl(output->nsp) >> 8);
++    u8 nsi = ntohl(output->nsp) & NSH_M_NSI;
++
+ 	if (output->tun_flags & TUNNEL_KEY &&
+ 	    nla_put_be64(skb, OVS_TUNNEL_KEY_ATTR_ID, output->tun_id))
+ 		return -EMSGSIZE;
+@@ -707,6 +759,24 @@ static int __ipv4_tun_to_nlattr(struct sk_buff *skb,
+ 	if ((output->tun_flags & TUNNEL_OAM) &&
+ 	    nla_put_flag(skb, OVS_TUNNEL_KEY_ATTR_OAM))
+ 		return -EMSGSIZE;
++    if (output->tun_flags & TUNNEL_NSP &&
++        nla_put_be32(skb, OVS_TUNNEL_KEY_ATTR_NSP, nsp))
++        return -EMSGSIZE;
++    if (output->tun_flags & TUNNEL_NSI &&
++        nla_put_u8(skb, OVS_TUNNEL_KEY_ATTR_NSI, nsi))
++        return -EMSGSIZE;
++    if (output->tun_flags & TUNNEL_NSHC &&
++        nla_put_be32(skb, OVS_TUNNEL_KEY_ATTR_NSH_C1, output->nshc1))
++        return -EMSGSIZE;
++    if (output->tun_flags & TUNNEL_NSHC &&
++        nla_put_be32(skb, OVS_TUNNEL_KEY_ATTR_NSH_C2, output->nshc2))
++        return -EMSGSIZE;
++    if (output->tun_flags & TUNNEL_NSHC &&
++        nla_put_be32(skb, OVS_TUNNEL_KEY_ATTR_NSH_C3, output->nshc3))
++        return -EMSGSIZE;
++    if (output->tun_flags & TUNNEL_NSHC &&
++        nla_put_be32(skb, OVS_TUNNEL_KEY_ATTR_NSH_C4, output->nshc4))
++        return -EMSGSIZE;
+ 	if (tun_opts) {
+ 		if (output->tun_flags & TUNNEL_GENEVE_OPT &&
+ 		    nla_put(skb, OVS_TUNNEL_KEY_ATTR_GENEVE_OPTS,
+diff --git a/datapath/linux/Modules.mk b/datapath/linux/Modules.mk
+index 96c3d55..98e95b2 100644
+--- a/datapath/linux/Modules.mk
++++ b/datapath/linux/Modules.mk
+@@ -79,5 +79,6 @@ openvswitch_headers += \
+ 	linux/compat/include/net/sock.h \
+ 	linux/compat/include/net/stt.h \
+ 	linux/compat/include/net/vxlan.h \
++    linux/compat/include/net/nsh.h \
+ 	linux/compat/include/net/sctp/checksum.h
+ EXTRA_DIST += linux/compat/build-aux/export-check-whitelist
+diff --git a/datapath/linux/compat/include/linux/openvswitch.h b/datapath/linux/compat/include/linux/openvswitch.h
+index 578cd88..aa5dfde 100644
+--- a/datapath/linux/compat/include/linux/openvswitch.h
++++ b/datapath/linux/compat/include/linux/openvswitch.h
+@@ -366,6 +366,12 @@ enum ovs_tunnel_key_attr {
+ 	OVS_TUNNEL_KEY_ATTR_TP_SRC,		/* be16 src Transport Port. */
+ 	OVS_TUNNEL_KEY_ATTR_TP_DST,		/* be16 dst Transport Port. */
+ 	OVS_TUNNEL_KEY_ATTR_VXLAN_OPTS,		/* Nested OVS_VXLAN_EXT_* */
++    OVS_TUNNEL_KEY_ATTR_NSP,        /* be32 NSH svc path (lower 24 bits) */
++    OVS_TUNNEL_KEY_ATTR_NSI,        /* u8 NSH service index*/
++    OVS_TUNNEL_KEY_ATTR_NSH_C1,    /* be32 nshc1 */
++    OVS_TUNNEL_KEY_ATTR_NSH_C2,    /* be32 nshc2 */
++    OVS_TUNNEL_KEY_ATTR_NSH_C3,    /* be32 nshc3 */
++    OVS_TUNNEL_KEY_ATTR_NSH_C4,    /* be32 nshc4 */
+ 	__OVS_TUNNEL_KEY_ATTR_MAX
+ };
+ 
+diff --git a/datapath/linux/compat/include/net/ip_tunnels.h b/datapath/linux/compat/include/net/ip_tunnels.h
+index 3ed6f91..f091209 100644
+--- a/datapath/linux/compat/include/net/ip_tunnels.h
++++ b/datapath/linux/compat/include/net/ip_tunnels.h
+@@ -80,6 +80,14 @@ struct tnl_ptk_info {
+ #undef TUNNEL_OPTIONS_PRESENT
+ #define TUNNEL_OPTIONS_PRESENT (TUNNEL_GENEVE_OPT | TUNNEL_VXLAN_OPT)
+ 
++#ifndef TUNNEL_NSP
++#define TUNNEL_NSP    __cpu_to_be16(0x2000)
++#define TUNNEL_NSI    __cpu_to_be16(0x4000)
++#endif
++#ifndef TUNNEL_NSHC
++#define TUNNEL_NSHC    __cpu_to_be16(0x8000)
++#endif
++
+ #define skb_is_encapsulated ovs_skb_is_encapsulated
+ bool ovs_skb_is_encapsulated(struct sk_buff *skb);
+ 
+diff --git a/datapath/linux/compat/include/net/nsh.h b/datapath/linux/compat/include/net/nsh.h
+new file mode 100644
+index 0000000..a143a83
+--- /dev/null
++++ b/datapath/linux/compat/include/net/nsh.h
+@@ -0,0 +1,103 @@
++/*
++ * Copyright (c) 2013, 2014 Cisco Systems, Inc.
++ *
++ * This program is free software; you can redistribute it and/or
++ * modify it under the terms of version 2 of the GNU General Public
++ * License as published by the Free Software Foundation.
++ *
++ * This program is distributed in the hope that it will be useful, but
++ * WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
++ * General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
++ * 02110-1301, USA
++ */
++
++#ifndef NSH_H
++#define NSH_H 1
++
++#include <linux/types.h>
++#include <asm/byteorder.h>
++
++
++/**
++ * struct nsh_bhdr - Network Service Base Header.
++ * @o: Operations and Management Packet indicator bit
++ * @c: If this bit is set then one or more contexts are in use.
++ * @proto: IEEE Ethertypes to indicate the frame within.
++ * @svc_idx: TTL functionality and location within service path.
++ * @svc_path: To uniquely identify service path.
++ */
++struct nsh_base {
++#if defined(__LITTLE_ENDIAN_BITFIELD)
++    __u8    res1:4;
++    __u8    c:1;
++    __u8    o:1;
++    __u8    ver:2;
++
++    __u8    len:6;
++    __u8    res2:2;
++#elif defined(__BIG_ENDIAN_BITFIELD)
++    __u8    ver:2;
++    __u8    o:1;
++    __u8    c:1;
++    __u8    res1:4;
++
++    __u8    res2:2;
++    __u8    len:6;
++#else
++#error "Bitfield Endianess not defined."
++#endif
++    __u8    mdtype;
++    __u8    proto;
++    union {
++        struct {
++            __u8    svc_path[3];
++            __u8    svc_idx;
++        };
++        __be32 b2;
++    };
++};
++
++/**
++ * struct nsh_ctx - Keeps track of NSH context data
++ * @c<1-4>: NSH Contexts.
++ */
++struct nsh_ctx {
++    __be32 c1;
++    __be32 c2;
++    __be32 c3;
++    __be32 c4;
++};
++
++/**
++ * struct nshdr - Network Service header
++ * @nsh_base: Network Service Base Header.
++ * @nsh_ctx: Network Service Context Header.
++ */
++struct nshhdr {
++    struct nsh_base b;
++    struct nsh_ctx c;
++};
++
++
++#define ETH_P_NSH        0x894F   /* Ethertype for NSH */
++
++/* NSH Base Header Next Protocol */
++#define NSH_P_IPV4        0x01
++#define NSH_P_IPV6        0x02
++#define NSH_P_ETHERNET    0x03
++
++/* MD Type Registry */
++#define NSH_M_TYPE1     0x01
++#define NSH_M_TYPE2     0x02
++#define NSH_M_EXP1      0xFE
++#define NSH_M_EXP2      0xFF
++
++#define NSH_DST_PORT    4790   /* UDP Port for NSH on VXLAN */
++
++
++#endif /* nsh.h */
+diff --git a/datapath/linux/compat/include/net/vxlan.h b/datapath/linux/compat/include/net/vxlan.h
+index cafff79..ff63260 100644
+--- a/datapath/linux/compat/include/net/vxlan.h
++++ b/datapath/linux/compat/include/net/vxlan.h
+@@ -4,8 +4,10 @@
+ #include <linux/skbuff.h>
+ #include <linux/netdevice.h>
+ #include <linux/udp.h>
++#include <net/nsh.h>
+ #include <net/gre.h>
+ 
++
+ #include <linux/version.h>
+ 
+ #ifdef HAVE_VXLAN_METADATA
+@@ -17,6 +19,14 @@
+ #ifndef VXLAN_HLEN
+ /* VXLAN header flags. */
+ #define VXLAN_HF_VNI 0x08000000
++/* VXLAN-GPE header flags. */
++#define VXLAN_GPE_HF_P 0x04000000
++#define VXLAN_GPE_HF_O 0x01000000
++#define VXLAN_GPE_HF_VER 0x00C00000
++#define VXLAN_GPE_HF_NP 0x0000000F
++
++#define VXLAN_GPE_NP_IS_NSH 4
++
+ #ifndef VXLAN_HF_GBP
+ #define VXLAN_HF_GBP 0x80000000
+ #endif
+@@ -24,6 +34,10 @@
+ #define VXLAN_N_VID     (1u << 24)
+ #define VXLAN_VID_MASK  (VXLAN_N_VID - 1)
+ #define VXLAN_HLEN (sizeof(struct udphdr) + sizeof(struct vxlanhdr))
++#define NSH_HLEN (sizeof(struct udphdr) + \
++          sizeof(struct vxlanhdr) + \
++          sizeof(struct nshhdr))
++
+ #endif
+ 
+ #ifndef VXLAN_GBP_USED_BITS
+@@ -119,7 +133,8 @@ struct rpl_vxlan_sock;
+ 
+ #define vxlan_rcv_t rpl_vxlan_rcv_t
+ typedef void (vxlan_rcv_t)(struct vxlan_sock *vh, struct sk_buff *skb,
+-			   struct vxlan_metadata *md);
++               struct vxlan_metadata *md, __be32 nsp, __be32 nshc1, __be32 nshc2,
++               __be32 nshc3, __be32 nshc4);
+ 
+ /* per UDP socket information */
+ struct vxlan_sock {
+@@ -144,7 +159,8 @@ void rpl_vxlan_sock_release(struct vxlan_sock *vs);
+ int rpl_vxlan_xmit_skb(struct rtable *rt, struct sock *sk, struct sk_buff *skb,
+ 		       __be32 src, __be32 dst, __u8 tos, __u8 ttl, __be16 df,
+ 		       __be16 src_port, __be16 dst_port,
+-		       struct vxlan_metadata *md, bool xnet, u32 vxflags);
++               struct vxlan_metadata *md, bool xnet, u32 vxflags,
++               __be32 nsp, __be32 nshc1, __be32 nshc2, __be32 nshc3, __be32 nshc4);
+ 
+ #endif /* !HAVE_VXLAN_METADATA */
+ #endif
+diff --git a/datapath/linux/compat/vxlan.c b/datapath/linux/compat/vxlan.c
+index fd454ae..41e202b 100644
+--- a/datapath/linux/compat/vxlan.c
++++ b/datapath/linux/compat/vxlan.c
+@@ -54,6 +54,7 @@
+ #include <net/net_namespace.h>
+ #include <net/netns/generic.h>
+ #include <net/vxlan.h>
++#include <net/nsh.h>
+ 
+ #include "compat.h"
+ #include "datapath.h"
+@@ -68,6 +69,16 @@ struct vxlanhdr {
+ 	__be32 vx_vni;
+ };
+ 
++static inline struct vxlanhdr *vxlan_hdr(const struct sk_buff *skb)
++{
++    return (struct vxlanhdr *)(udp_hdr(skb) + 1);
++}
++
++static inline struct nshhdr *nsh_hdr(const struct sk_buff *skb)
++{
++    return (struct nshhdr *)(vxlan_hdr(skb) + 1);
++}
++
+ /* Callback from net/ipv4/udp.c to receive packets */
+ static int vxlan_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
+ {
+@@ -75,23 +86,62 @@ static int vxlan_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
+ 	struct vxlanhdr *vxh;
+ 	u32 flags, vni;
+ 	struct vxlan_metadata md = {0};
++    struct udphdr *udp;
++    bool isnsh = false;
++    __be32 nsp = 0;
++    __be32 c1 = 0;
++    __be32 c2 = 0;
++    __be32 c3 = 0;
++    __be32 c4 = 0;
++
++    udp = (struct udphdr *)udp_hdr(skb);
++    if (udp->dest == htons(NSH_DST_PORT))
++        isnsh = true;
+ 
+ 	/* Need Vxlan and inner Ethernet header to be present */
+-	if (!pskb_may_pull(skb, VXLAN_HLEN))
++    if (!pskb_may_pull(skb, isnsh ? NSH_HLEN : VXLAN_HLEN))
+ 		goto error;
+ 
+-	vxh = (struct vxlanhdr *)(udp_hdr(skb) + 1);
++    vxh = vxlan_hdr(skb);
+ 	flags = ntohl(vxh->vx_flags);
+ 	vni = ntohl(vxh->vx_vni);
+ 
+-	if (flags & VXLAN_HF_VNI) {
+-		flags &= ~VXLAN_HF_VNI;
+-	} else {
++    if (isnsh) {
++        if((flags & VXLAN_GPE_HF_P) && ((flags & VXLAN_GPE_HF_NP) == VXLAN_GPE_NP_IS_NSH)){
++            flags &= ~(VXLAN_HF_VNI | VXLAN_GPE_HF_P | VXLAN_GPE_HF_O | VXLAN_GPE_HF_VER | VXLAN_GPE_HF_NP);
++        }
++        else {
++            /* need to set vxlan-gpe header flag for nsh correctly */
++            goto bad_flags;
++        }
++    }
++    else {
++	    if (flags & VXLAN_HF_VNI) {
++		    flags &= ~VXLAN_HF_VNI;
++        }
++        else {
+ 		/* VNI flag always required to be set */
+ 		goto bad_flags;
+-	}
+-
+-	if (iptunnel_pull_header(skb, VXLAN_HLEN, htons(ETH_P_TEB)))
++	    }
++    }
++
++    if (isnsh) {
++        struct nshhdr *nsh = nsh_hdr(skb);
++        if (unlikely(nsh->b.svc_idx == 0 || nsh->b.ver ||
++                  nsh->b.len != 6 || nsh->b.mdtype != 0x01 ||
++                  nsh->b.proto != NSH_P_ETHERNET)) {
++            pr_warn("NSH service index reached zero or not supported\n");
++            goto drop;
++        }
++
++        nsp = nsh->b.b2; /* same as svc_path | htonl(svc_idx) */
++         c1 = nsh->c.c1;  /* NSH Contexts */
++         c2 = nsh->c.c2;
++         c3 = nsh->c.c3;
++         c4 = nsh->c.c4;
++    }
++
++    if (iptunnel_pull_header(skb, isnsh ? NSH_HLEN : VXLAN_HLEN, htons(ETH_P_TEB)))
+ 		goto drop;
+ 
+ 	vs = rcu_dereference_sk_user_data(sk);
+@@ -101,7 +151,7 @@ static int vxlan_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
+ 	/* For backwards compatibility, only allow reserved fields to be
+ 	* used by VXLAN extensions if explicitly requested.
+ 	*/
+-	if ((flags & VXLAN_HF_GBP) && (vs->flags & VXLAN_F_GBP)) {
++    if (!isnsh && (flags & VXLAN_HF_GBP) && (vs->flags & VXLAN_F_GBP)) {
+ 		struct vxlanhdr_gbp *gbp;
+ 
+ 		gbp = (struct vxlanhdr_gbp *)vxh;
+@@ -130,7 +180,7 @@ static int vxlan_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
+ 	}
+ 
+ 	md.vni = vxh->vx_vni;
+-	vs->rcv(vs, skb, &md);
++    vs->rcv(vs, skb, &md,nsp, c1, c2, c3, c4);
+ 	return 0;
+ 
+ drop:
+@@ -183,15 +233,17 @@ static void vxlan_build_gbp_hdr(struct vxlanhdr *vxh, u32 vxflags,
+ int rpl_vxlan_xmit_skb(struct rtable *rt, struct sock *sk, struct sk_buff *skb,
+ 		       __be32 src, __be32 dst, __u8 tos, __u8 ttl, __be16 df,
+ 		       __be16 src_port, __be16 dst_port,
+-		       struct vxlan_metadata *md, bool xnet, u32 vxflags)
++               struct vxlan_metadata *md, bool xnet, u32 vxflags,
++               __be32 nsp, __be32 nshc1, __be32 nshc2, __be32 nshc3, __be32 nshc4)
+ {
++    bool isnsh = (dst_port == htons(NSH_DST_PORT));
+ 	struct vxlanhdr *vxh;
+ 	int min_headroom;
+ 	int err;
+ 	bool udp_sum = !!(vxflags & VXLAN_F_UDP_CSUM);
+ 
+ 	min_headroom = LL_RESERVED_SPACE(rt_dst(rt).dev) + rt_dst(rt).header_len
+-			+ VXLAN_HLEN + sizeof(struct iphdr)
++            + (isnsh ? NSH_HLEN : VXLAN_HLEN) + sizeof(struct iphdr)
+ 			+ (skb_vlan_tag_present(skb) ? VLAN_HLEN : 0);
+ 
+ 	/* Need space for new headers (invalidates iph ptr) */
+@@ -208,9 +260,28 @@ int rpl_vxlan_xmit_skb(struct rtable *rt, struct sock *sk, struct sk_buff *skb,
+ 	skb = udp_tunnel_handle_offloads(skb, udp_sum, true);
+ 	if (IS_ERR(skb))
+ 		return PTR_ERR(skb);
++    if (isnsh) {
++        struct nshhdr *nsh;
++        uint8_t nsi = ntohl(nsp) & NSH_M_NSI;
++        nsh = (struct nshhdr *) __skb_push(skb, sizeof(*nsh));
++               memset(&nsh->b, 0, sizeof nsh->b);
++        nsh->b.len = 6;
++        nsh->b.mdtype = NSH_M_TYPE1;
++        nsh->b.proto = NSH_P_ETHERNET;
++        /* b2 should precede svc_idx, else svc_idx will be zero */
++        nsh->b.b2 = nsp & htonl(NSH_M_NSP);
++        nsh->b.svc_idx = nsi ? nsi : 0x01;
++        nsh->c.c1 = nshc1;
++        nsh->c.c2 = nshc2;
++        nsh->c.c3 = nshc3;
++        nsh->c.c4 = nshc4;
++    }
+ 
+ 	vxh = (struct vxlanhdr *) __skb_push(skb, sizeof(*vxh));
+-	vxh->vx_flags = htonl(VXLAN_HF_VNI);
++    if(isnsh)
++        vxh->vx_flags = htonl(VXLAN_GPE_HF_P | (VXLAN_GPE_HF_NP & VXLAN_GPE_NP_IS_NSH)); //set vxlan_gpe nsh header flag
++    else
++	    vxh->vx_flags = htonl(VXLAN_HF_VNI);
+ 	vxh->vx_vni = md->vni;
+ 
+ 	if (vxflags & VXLAN_F_GBP)
+diff --git a/datapath/vport-geneve.c b/datapath/vport-geneve.c
+index 4ab224d..7ff24c5 100644
+--- a/datapath/vport-geneve.c
++++ b/datapath/vport-geneve.c
+@@ -92,7 +92,7 @@ static void geneve_rcv(struct geneve_sock *gs, struct sk_buff *skb)
+ 
+ 	ovs_flow_tun_info_init(&tun_info, ip_hdr(skb),
+ 			       udp_hdr(skb)->source, udp_hdr(skb)->dest,
+-			       key, flags,
++                   key, 0, 0, 0, 0, 0, flags,
+ 			       geneveh->options, opts_len);
+ 
+ 	ovs_vport_receive(vport, skb, &tun_info);
+diff --git a/datapath/vport-gre.c b/datapath/vport-gre.c
+index 0328fe5..2fd4ea6 100644
+--- a/datapath/vport-gre.c
++++ b/datapath/vport-gre.c
+@@ -111,7 +111,7 @@ static int gre_rcv(struct sk_buff *skb,
+ 		return PACKET_REJECT;
+ 
+ 	key = key_to_tunnel_id(tpi->key, tpi->seq);
+-	ovs_flow_tun_info_init(&tun_info, ip_hdr(skb), 0, 0, key,
++    ovs_flow_tun_info_init(&tun_info, ip_hdr(skb), 0, 0, key, 0, 0, 0, 0, 0,
+ 			       filter_tnl_flags(tpi->flags), NULL, 0);
+ 
+ 	ovs_vport_receive(vport, skb, &tun_info);
+diff --git a/datapath/vport-lisp.c b/datapath/vport-lisp.c
+index 104a21d..1480ae7 100644
+--- a/datapath/vport-lisp.c
++++ b/datapath/vport-lisp.c
+@@ -249,7 +249,7 @@ static int lisp_rcv(struct sock *sk, struct sk_buff *skb)
+ 	iph = ip_hdr(skb);
+ 	ovs_flow_tun_info_init(&tun_info, iph,
+ 			       udp_hdr(skb)->source, udp_hdr(skb)->dest,
+-			       key, TUNNEL_KEY, NULL, 0);
++                   key, 0, 0, 0, 0, 0, TUNNEL_KEY, NULL, 0);
+ 
+ 	/* Drop non-IP inner packets */
+ 	inner_iph = (struct iphdr *)(lisph + 1);
+diff --git a/datapath/vport-stt.c b/datapath/vport-stt.c
+index 4eb0282..e9e48e6 100644
+--- a/datapath/vport-stt.c
++++ b/datapath/vport-stt.c
+@@ -53,7 +53,7 @@ static void stt_rcv(struct stt_sock *stt_sock, struct sk_buff *skb)
+ 
+ 	ovs_flow_tun_info_init(&tun_info, ip_hdr(skb),
+ 			       tcp_hdr(skb)->source, tcp_hdr(skb)->dest,
+-			       get_unaligned(&stth->key),
++                   get_unaligned(&stth->key), 0, 0, 0, 0, 0,
+ 			       TUNNEL_KEY | TUNNEL_CSUM,
+ 			       NULL, 0);
+ 	do {
+diff --git a/datapath/vport-vxlan.c b/datapath/vport-vxlan.c
+index fc9f350..9f93c52 100644
+--- a/datapath/vport-vxlan.c
++++ b/datapath/vport-vxlan.c
+@@ -63,7 +63,8 @@ static inline struct vxlan_port *vxlan_vport(const struct vport *vport)
+ }
+ 
+ static void vxlan_rcv(struct vxlan_sock *vs, struct sk_buff *skb,
+-		      struct vxlan_metadata *md)
++              struct vxlan_metadata *md, __be32 nsp, __be32 nshc1, __be32 nshc2,
++              __be32 nshc3, __be32 nshc4)
+ {
+ 	struct ovs_tunnel_info tun_info;
+ 	struct vxlan_port *vxlan_port;
+@@ -75,7 +76,7 @@ static void vxlan_rcv(struct vxlan_sock *vs, struct sk_buff *skb,
+ 	__be64 key;
+ 	__be16 flags;
+ 
+-	flags = TUNNEL_KEY | (udp_hdr(skb)->check != 0 ? TUNNEL_CSUM : 0);
++    flags = TUNNEL_KEY |TUNNEL_NSP |TUNNEL_NSI |TUNNEL_NSHC | (udp_hdr(skb)->check != 0 ? TUNNEL_CSUM : 0);
+ 	vxlan_port = vxlan_vport(vport);
+ 	if (vxlan_port->exts & VXLAN_F_GBP && md->gbp)
+ 		flags |= TUNNEL_VXLAN_OPT;
+@@ -85,7 +86,8 @@ static void vxlan_rcv(struct vxlan_sock *vs, struct sk_buff *skb,
+ 	key = cpu_to_be64(ntohl(md->vni) >> 8);
+ 	ovs_flow_tun_info_init(&tun_info, iph,
+ 			       udp_hdr(skb)->source, udp_hdr(skb)->dest,
+-			       key, flags, &opts, sizeof(opts));
++                   key, nsp, nshc1, nshc2, nshc3, nshc4,
++                   flags, &opts, sizeof(opts));
+ 
+ 	ovs_vport_receive(vport, skb, &tun_info);
+ }
+@@ -265,7 +267,12 @@ static int vxlan_tnl_send(struct vport *vport, struct sk_buff *skb)
+ 			     tun_key->ipv4_tos,
+ 			     tun_key->ipv4_ttl, df,
+ 			     src_port, dst_port,
+-			     &md, false, vxflags);
++                 &md, false, vxflags,
++                 tun_key->nsp,
++                 tun_key->nshc1,
++                 tun_key->nshc2,
++                 tun_key->nshc3,
++                 tun_key->nshc4);
+ 	if (err < 0)
+ 		ip_rt_put(rt);
+ 	return err;
+diff --git a/datapath/vport.c b/datapath/vport.c
+index 024491f..9e2bd9c 100644
+--- a/datapath/vport.c
++++ b/datapath/vport.c
+@@ -624,6 +624,11 @@ int ovs_tunnel_get_egress_info(struct ovs_tunnel_info *egress_tun_info,
+ 				 tun_key->ipv4_ttl,
+ 				 tp_src, tp_dst,
+ 				 tun_key->tun_id,
++                 tun_key->nsp,
++                 tun_key->nshc1,
++                 tun_key->nshc2,
++                 tun_key->nshc3,
++                 tun_key->nshc4,
+ 				 tun_key->tun_flags,
+ 				 tun_info->options,
+ 				 tun_info->options_len);
+diff --git a/lib/flow.c b/lib/flow.c
+index 84048e8..2cbfb6d 100644
+--- a/lib/flow.c
++++ b/lib/flow.c
+@@ -854,6 +854,18 @@ flow_tun_flag_to_string(uint32_t flags)
+         return "key";
+     case FLOW_TNL_F_OAM:
+         return "oam";
++    case FLOW_TNL_F_NSP:
++        return "nsp";
++    case FLOW_TNL_F_NSI:
++        return "nsi";
++    case FLOW_TNL_F_NSH_C1:
++        return "nshc1";
++    case FLOW_TNL_F_NSH_C2:
++        return "nshc2";
++    case FLOW_TNL_F_NSH_C3:
++        return "nshc3";
++    case FLOW_TNL_F_NSH_C4:
++        return "nshc4";
+     default:
+         return NULL;
+     }
+@@ -1152,6 +1164,24 @@ void flow_wildcards_init_for_packet(struct flow_wildcards *wc,
+         if (flow->tunnel.flags & FLOW_TNL_F_KEY) {
+             WC_MASK_FIELD(wc, tunnel.tun_id);
+         }
++        if (flow->tunnel.flags & FLOW_TNL_F_NSP) {
++            WC_MASK_FIELD(wc, tunnel.nsp);
++        }
++        if (flow->tunnel.flags & FLOW_TNL_F_NSI) {
++            WC_MASK_FIELD(wc, tunnel.nsi);
++        }
++        if (flow->tunnel.flags & FLOW_TNL_F_NSH_C1) {
++            WC_MASK_FIELD(wc, tunnel.nshc1);
++        }
++        if (flow->tunnel.flags & FLOW_TNL_F_NSH_C2) {
++            WC_MASK_FIELD(wc, tunnel.nshc2);
++        }
++        if (flow->tunnel.flags & FLOW_TNL_F_NSH_C3) {
++            WC_MASK_FIELD(wc, tunnel.nshc3);
++        }
++        if (flow->tunnel.flags & FLOW_TNL_F_NSH_C4) {
++            WC_MASK_FIELD(wc, tunnel.nshc4);
++        }
+         WC_MASK_FIELD(wc, tunnel.ip_src);
+         WC_MASK_FIELD(wc, tunnel.ip_dst);
+         WC_MASK_FIELD(wc, tunnel.flags);
+@@ -1177,6 +1207,24 @@ void flow_wildcards_init_for_packet(struct flow_wildcards *wc,
+         WC_MASK_FIELD(wc, tunnel.tun_id);
+     }
+ 
++    if (flow->tunnel.nsp) {
++        WC_MASK_FIELD(wc, tunnel.nsp);
++    }
++    if (flow->tunnel.nsi) {
++        WC_MASK_FIELD(wc, tunnel.nsi);
++    }
++    if (flow->tunnel.nshc1) {
++        WC_MASK_FIELD(wc, tunnel.nshc1);
++    }
++    if (flow->tunnel.nshc2) {
++        WC_MASK_FIELD(wc, tunnel.nshc2);
++    }
++    if (flow->tunnel.nshc3) {
++        WC_MASK_FIELD(wc, tunnel.nshc3);
++    }
++    if (flow->tunnel.nshc4) {
++        WC_MASK_FIELD(wc, tunnel.nshc4);
++    }
+     /* metadata, regs, and conj_id wildcarded. */
+ 
+     WC_MASK_FIELD(wc, skb_priority);
+diff --git a/lib/match.c b/lib/match.c
+index 9e465d8..7f7bd4d 100644
+--- a/lib/match.c
++++ b/lib/match.c
+@@ -736,6 +736,86 @@ match_set_nd_target_masked(struct match *match,
+     match->wc.masks.nd_target = *mask;
+ }
+ 
++void
++match_set_nsp_masked(struct match *match, ovs_be32 nsp, ovs_be32 mask)
++{
++    match->wc.masks.tunnel.nsp = mask;
++    match->flow.tunnel.nsp = nsp & mask;
++}
++
++void
++match_set_nsi_masked(struct match *match, uint8_t nsi, uint8_t mask)
++{
++    match->wc.masks.tunnel.nsi = mask;
++    match->flow.tunnel.nsi = nsi & mask;
++}
++
++void
++match_set_nshc1_masked(struct match *match, ovs_be32 nshc1, ovs_be32 mask)
++{
++    match->wc.masks.tunnel.nshc1 = mask;
++    match->flow.tunnel.nshc1 = nshc1 & mask;
++}
++
++void
++match_set_nshc2_masked(struct match *match, ovs_be32 nshc2, ovs_be32 mask)
++{
++    match->wc.masks.tunnel.nshc2 = mask;
++    match->flow.tunnel.nshc2 = nshc2 & mask;
++}
++
++void
++match_set_nshc3_masked(struct match *match, ovs_be32 nshc3, ovs_be32 mask)
++{
++    match->wc.masks.tunnel.nshc3 = mask;
++    match->flow.tunnel.nshc3 = nshc3 & mask;
++}
++
++void
++match_set_nshc4_masked(struct match *match, ovs_be32 nshc4, ovs_be32 mask)
++{
++    match->wc.masks.tunnel.nshc4 = mask;
++    match->flow.tunnel.nshc4 = nshc4 & mask;
++}
++
++void
++match_set_nsp(struct match *match, ovs_be32 nsp)
++{
++    match_set_nsp_masked(match, nsp, OVS_BE32_MAX);
++}
++
++
++void
++match_set_nsi(struct match *match, uint8_t nsi)
++{
++    match_set_nsi_masked(match, nsi, UINT8_MAX);
++}
++
++void
++match_set_nshc1(struct match *match, ovs_be32 nshc1)
++{
++    match_set_nshc1_masked(match, nshc1, OVS_BE32_MAX);
++}
++
++void
++match_set_nshc2(struct match *match, ovs_be32 nshc2)
++{
++    match_set_nshc2_masked(match, nshc2, OVS_BE32_MAX);
++}
++
++void
++match_set_nshc3(struct match *match, ovs_be32 nshc3)
++{
++    match_set_nshc3_masked(match, nshc3, OVS_BE32_MAX);
++}
++
++void
++match_set_nshc4(struct match *match, ovs_be32 nshc4)
++{
++    match_set_nshc4_masked(match, nshc4, OVS_BE32_MAX);
++}
++
++
+ /* Returns true if 'a' and 'b' wildcard the same fields and have the same
+  * values for fixed fields, otherwise false. */
+ bool
+@@ -880,6 +960,16 @@ format_flow_tunnel(struct ds *s, const struct match *match)
+     const struct flow_tnl *tnl = &match->flow.tunnel;
+ 
+     format_be64_masked(s, "tun_id", tnl->tun_id, wc->masks.tunnel.tun_id);
++    format_be32_masked(s, "nsp", tnl->nsp, wc->masks.tunnel.nsp);
++    format_be32_masked(s, "nshc1", tnl->nshc1, wc->masks.tunnel.nshc1);
++    format_be32_masked(s, "nshc2", tnl->nshc2, wc->masks.tunnel.nshc2);
++    format_be32_masked(s, "nshc3", tnl->nshc3, wc->masks.tunnel.nshc3);
++    format_be32_masked(s, "nshc4", tnl->nshc4, wc->masks.tunnel.nshc4);
++
++    if (wc->masks.tunnel.nsi) {
++        ds_put_format(s, "nsi=%"PRIu8",", tnl->nsi);
++    }
++
+     format_ip_netmask(s, "tun_src", tnl->ip_src, wc->masks.tunnel.ip_src);
+     format_ip_netmask(s, "tun_dst", tnl->ip_dst, wc->masks.tunnel.ip_dst);
+ 
+diff --git a/lib/match.h b/lib/match.h
+index 3e133e5..3d58c8e 100644
+--- a/lib/match.h
++++ b/lib/match.h
+@@ -146,6 +146,20 @@ void match_set_nd_target(struct match *, const struct in6_addr *);
+ void match_set_nd_target_masked(struct match *, const struct in6_addr *,
+                                 const struct in6_addr *);
+ 
++void match_set_nsp_masked(struct match *, ovs_be32 nsp, ovs_be32 mask);
++void match_set_nsi_masked(struct match *match, uint8_t nsi, uint8_t mask);
++void match_set_nshc1_masked(struct match *, ovs_be32 nshc1, ovs_be32 mask);
++void match_set_nshc2_masked(struct match *, ovs_be32 nshc2, ovs_be32 mask);
++void match_set_nshc3_masked(struct match *, ovs_be32 nshc3, ovs_be32 mask);
++void match_set_nshc4_masked(struct match *, ovs_be32 nshc4, ovs_be32 mask);
++
++void match_set_nsp(struct match *, ovs_be32 nsp);
++void match_set_nsi(struct match *match, uint8_t nsi);
++void match_set_nshc1(struct match *, ovs_be32 nshc1);
++void match_set_nshc2(struct match *, ovs_be32 nshc2);
++void match_set_nshc3(struct match *, ovs_be32 nshc3);
++void match_set_nshc4(struct match *, ovs_be32 nshc4);
++
+ bool match_equal(const struct match *, const struct match *);
+ uint32_t match_hash(const struct match *, uint32_t basis);
+ 
+diff --git a/lib/meta-flow.c b/lib/meta-flow.c
+index 224ba53..0814a57 100644
+--- a/lib/meta-flow.c
++++ b/lib/meta-flow.c
+@@ -205,6 +205,18 @@ mf_is_all_wild(const struct mf_field *mf, const struct flow_wildcards *wc)
+     CASE_MFF_TUN_METADATA:
+         return !ULLONG_GET(wc->masks.tunnel.metadata.present.map,
+                            mf->id - MFF_TUN_METADATA0);
++    case MFF_NSP:
++        return !wc->masks.tunnel.nsp;
++    case MFF_NSI:
++        return !wc->masks.tunnel.nsi;
++    case MFF_NSH_C1:
++        return !wc->masks.tunnel.nshc1;
++    case MFF_NSH_C2:
++        return !wc->masks.tunnel.nshc2;
++    case MFF_NSH_C3:
++        return !wc->masks.tunnel.nshc3;
++    case MFF_NSH_C4:
++        return !wc->masks.tunnel.nshc4;
+     case MFF_METADATA:
+         return !wc->masks.metadata;
+     case MFF_IN_PORT:
+@@ -526,6 +538,12 @@ mf_is_value_valid(const struct mf_field *mf, const union mf_value *value)
+     case MFF_ND_TARGET:
+     case MFF_ND_SLL:
+     case MFF_ND_TLL:
++    case MFF_NSP:
++    case MFF_NSI:
++    case MFF_NSH_C1:
++    case MFF_NSH_C2:
++    case MFF_NSH_C3:
++    case MFF_NSH_C4:
+         return true;
+ 
+     case MFF_IN_PORT_OXM:
+@@ -788,6 +806,27 @@ mf_get_value(const struct mf_field *mf, const struct flow *flow,
+         value->ipv6 = flow->nd_target;
+         break;
+ 
++    case MFF_NSP:
++        value->be32 = flow->tunnel.nsp;
++        break;
++
++    case MFF_NSI:
++        value->u8 = flow->tunnel.nsi;
++        break;
++
++    case MFF_NSH_C1:
++        value->be32 = flow->tunnel.nshc1;
++        break;
++    case MFF_NSH_C2:
++        value->be32 = flow->tunnel.nshc2;
++        break;
++    case MFF_NSH_C3:
++        value->be32 = flow->tunnel.nshc3;
++        break;
++    case MFF_NSH_C4:
++        value->be32 = flow->tunnel.nshc4;
++        break;
++
+     case MFF_N_IDS:
+     default:
+         OVS_NOT_REACHED();
+@@ -1020,6 +1059,30 @@ mf_set_value(const struct mf_field *mf,
+         match_set_nd_target(match, &value->ipv6);
+         break;
+ 
++    case MFF_NSP:
++        match_set_nsp(match, value->be32);
++        break;
++
++    case MFF_NSI:
++        match_set_nsi(match, value->u8);
++        break;
++
++    case MFF_NSH_C1:
++        match_set_nshc1(match, value->be32);
++        break;
++
++    case MFF_NSH_C2:
++        match_set_nshc2(match, value->be32);
++        break;
++
++    case MFF_NSH_C3:
++        match_set_nshc3(match, value->be32);
++        break;
++
++    case MFF_NSH_C4:
++        match_set_nshc4(match, value->be32);
++        break;
++
+     case MFF_N_IDS:
+     default:
+         OVS_NOT_REACHED();
+@@ -1307,6 +1370,30 @@ mf_set_flow_value(const struct mf_field *mf,
+         flow->nd_target = value->ipv6;
+         break;
+ 
++    case MFF_NSP:
++        flow->tunnel.nsp = value->be32;
++        break;
++
++    case MFF_NSI:
++        flow->tunnel.nsi = value->u8;
++        break;
++
++    case MFF_NSH_C1:
++        flow->tunnel.nshc1 = value->be32;
++        break;
++
++    case MFF_NSH_C2:
++        flow->tunnel.nshc2 = value->be32;
++        break;
++
++    case MFF_NSH_C3:
++        flow->tunnel.nshc3 = value->be32;
++        break;
++
++    case MFF_NSH_C4:
++        flow->tunnel.nshc4 = value->be32;
++        break;
++
+     case MFF_N_IDS:
+     default:
+         OVS_NOT_REACHED();
+@@ -1595,6 +1682,30 @@ mf_set_wild(const struct mf_field *mf, struct match *match, char **err_str)
+         memset(&match->flow.nd_target, 0, sizeof match->flow.nd_target);
+         break;
+ 
++    case MFF_NSP:
++        match_set_nsp_masked(match, htonl(0), htonl(0));
++        break;
++
++    case MFF_NSI:
++        match_set_nsi_masked(match, 0, 0);
++        break;
++
++    case MFF_NSH_C1:
++        match_set_nshc1_masked(match, htonl(0), htonl(0));
++        break;
++
++    case MFF_NSH_C2:
++        match_set_nshc2_masked(match, htonl(0), htonl(0));
++        break;
++
++    case MFF_NSH_C3:
++        match_set_nshc3_masked(match, htonl(0), htonl(0));
++        break;
++
++    case MFF_NSH_C4:
++        match_set_nshc4_masked(match, htonl(0), htonl(0));
++        break;
++
+     case MFF_N_IDS:
+     default:
+         OVS_NOT_REACHED();
+@@ -1793,6 +1904,30 @@ mf_set(const struct mf_field *mf,
+         match_set_tcp_flags_masked(match, value->be16, mask->be16);
+         break;
+ 
++    case MFF_NSP:
++        match_set_nsp_masked(match, value->be32, mask->be32);
++        break;
++
++    case MFF_NSI:
++        match_set_nsi_masked(match, value->u8, mask->u8);
++        break;
++
++    case MFF_NSH_C1:
++        match_set_nshc1_masked(match, value->be32, mask->be32);
++        break;
++
++    case MFF_NSH_C2:
++        match_set_nshc2_masked(match, value->be32, mask->be32);
++        break;
++
++    case MFF_NSH_C3:
++        match_set_nshc3_masked(match, value->be32, mask->be32);
++        break;
++
++    case MFF_NSH_C4:
++        match_set_nshc4_masked(match, value->be32, mask->be32);
++        break;
++
+     case MFF_N_IDS:
+     default:
+         OVS_NOT_REACHED();
+diff --git a/lib/meta-flow.h b/lib/meta-flow.h
+index 02272ef..948b403 100644
+--- a/lib/meta-flow.h
++++ b/lib/meta-flow.h
+@@ -1566,6 +1566,108 @@ enum OVS_PACKED_ENUM mf_field_id {
+      */
+     MFF_ND_TLL,
+ 
++    /* "nsp".
++     *
++     * For a packet received via a VXLAN tunnel including a (32-bit)
++     * network service header service path (nsp), the nsp is stored
++     * in the low 24-bits and the high bits are zeroed.  For
++     * other packets, the value is 0.
++     *
++     * Type: be32.
++     * Maskable: bitwise.
++     * Formatting: hexadecimal.
++     * Prerequisites: none.
++     * Access: read/write.
++     * NXM: NXM_NX_NSP(105) since v1.1.
++     * OXM: none.
++     * Prefix lookup member: tunnel.nsp.
++     */
++    MFF_NSP,
++
++    /* "nsi".
++     *
++     * For a packet received via a VXLAN tunnel, it includes a (8-bit)
++     * network service header service index (nsi).
++     *
++     * Type: u8.
++     * Maskable: bitwise.
++     * Formatting: decimal.
++     * Prerequisites: none.
++     * Access: read/write.
++     * NXM: NXM_NX_NSI(106) since v1.1.
++     * OXM: none.
++     * Prefix lookup member: tunnel.nsi.
++     */
++    MFF_NSI,
++
++    /* "nshc1".
++     *
++     * For a packet received via a VXLAN tunnel including a (32-bit)
++     * Network Platform Context (nshc1), the nshc1 is stored
++     * in the 32-bits.  For other packets, the value is 0.
++     *
++     * Type: be32.
++     * Maskable: bitwise.
++     * Formatting: hexadecimal.
++     * Prerequisites: none.
++     * Access: read/write.
++     * NXM: NXM_NX_NSH_C1(107) since v1.1.
++     * OXM: none.
++     * Prefix lookup member: tunnel.nshc1.
++     */
++    MFF_NSH_C1,
++
++    /* "nshc2".
++     *
++     * For a packet received via a VXLAN tunnel including a (32-bit)
++     * Network Shared Context (nshc2), the nshc2 is stored
++     * in the 32-bits.  For other packets, the value is 0.
++     *
++     * Type: be32.
++     * Maskable: bitwise.
++     * Formatting: hexadecimal.
++     * Prerequisites: none.
++     * Access: read/write.
++     * NXM: NXM_NX_NSH_C2(108) since v1.1.
++     * OXM: none.
++     * Prefix lookup member: tunnel.nshc2.
++     */
++    MFF_NSH_C2,
++
++    /* "nshc3".
++     *
++     * For a packet received via a VXLAN tunnel including a (32-bit)
++     * Service Platform Context (nshc3), the nshc3 is stored
++     * in the 32-bits.  For other packets, the value is 0.
++     *
++     * Type: be32.
++     * Maskable: bitwise.
++     * Formatting: hexadecimal.
++     * Prerequisites: none.
++     * Access: read/write.
++     * NXM: NXM_NX_NSH_C3(109) since v1.1.
++     * OXM: none.
++     * Prefix lookup member: tunnel.nshc3.
++     */
++    MFF_NSH_C3,
++
++    /* "nshc4".
++     *
++     * For a packet received via a VXLAN tunnel including a (32-bit)
++     * Service Shared Context (nshc4), the nshc4 is stored
++     * in the 32-bits.  For other packets, the value is 0.
++     *
++     * Type: be32.
++     * Maskable: bitwise.
++     * Formatting: hexadecimal.
++     * Prerequisites: none.
++     * Access: read/write.
++     * NXM: NXM_NX_NSH_C4(110) since v1.1.
++     * OXM: none.
++     * Prefix lookup member: tunnel.nshc4.
++     */
++    MFF_NSH_C4,
++
+     MFF_N_IDS
+ };
+ 
+diff --git a/lib/netdev-vport.c b/lib/netdev-vport.c
+index ff50563..3f85386 100644
+--- a/lib/netdev-vport.c
++++ b/lib/netdev-vport.c
+@@ -424,6 +424,86 @@ parse_key(const struct smap *args, const char *name,
+     }
+ }
+ 
++static ovs_be32
++parse_nsp(const struct smap *args, const char *name,
++          bool *present, bool *flow)
++{
++    const char *s;
++
++    *present = false;
++    *flow = false;
++
++    s = smap_get(args, name);
++    if (!s) {
++        s = smap_get(args, "nsp");
++        if (!s) {
++            return 0;
++        }
++    }
++
++    *present = true;
++
++    if (!strcmp(s, "flow")) {
++        *flow = true;
++        return 0;
++    } else {
++        return htonl(strtoul(s, NULL, 0));
++    }
++}
++static uint8_t
++parse_nsi(const struct smap *args, const char *name,
++          bool *present, bool *flow)
++{
++    const char *s;
++
++    *present = false;
++    *flow = false;
++
++    s = smap_get(args, name);
++    if (!s) {
++        s = smap_get(args, "nsi");
++        if (!s) {
++            return 0;
++        }
++    }
++
++    *present = true;
++
++    if (!strcmp(s, "flow")) {
++        *flow = true;
++        return 0;
++    } else {
++        return strtoul(s, NULL, 0);
++    }
++}
++
++static ovs_be32
++parse_nshc(const struct smap *args, const char *nsh_ele,const char *name,
++            bool *present, bool *flow)
++{
++    const char *s;
++
++    *present = false;
++    *flow = false;
++
++    s = smap_get(args, name);
++    if (!s) {
++        s = smap_get(args, nsh_ele);
++        if (!s) {
++            return 0;
++        }
++    }
++
++    *present = true;
++
++    if (!strcmp(s, "flow")) {
++        *flow = true;
++        return 0;
++    } else {
++        return htonl(strtoul(s, NULL, 0));
++    }
++}
++
+ static int
+ set_tunnel_config(struct netdev *dev_, const struct smap *args)
+ {
+@@ -563,6 +643,30 @@ set_tunnel_config(struct netdev *dev_, const struct smap *args)
+             }
+ 
+             free(str);
++        } else if (!strcmp(node->key, "nsp") ||
++                   !strcmp(node->key, "in_nsp") ||
++                   !strcmp(node->key, "out_nsp")) {
++            /* Handled separately below. */
++        } else if (!strcmp(node->key, "nsi") ||
++                   !strcmp(node->key, "in_nsi") ||
++                   !strcmp(node->key, "out_nsi")) {
++            /* Handled separately below. */
++        } else if (!strcmp(node->key, "nshc1") ||
++                   !strcmp(node->key, "in_nshc1") ||
++                   !strcmp(node->key, "out_nshc1")) {
++            /* Handled separately below. */
++        } else if (!strcmp(node->key, "nshc2") ||
++                   !strcmp(node->key, "in_nshc2") ||
++                   !strcmp(node->key, "out_nshc2")) {
++            /* Handled separately below. */
++        } else if (!strcmp(node->key, "nshc3") ||
++                   !strcmp(node->key, "in_nshc3") ||
++                   !strcmp(node->key, "out_nshc3")) {
++            /* Handled separately below. */
++        } else if (!strcmp(node->key, "nshc4") ||
++                   !strcmp(node->key, "in_nshc4") ||
++                   !strcmp(node->key, "out_nshc4")) {
++            /* Handled separately below. */
+         } else {
+             VLOG_WARN("%s: unknown %s argument '%s'", name, type, node->key);
+         }
+@@ -623,6 +727,65 @@ set_tunnel_config(struct netdev *dev_, const struct smap *args)
+                                &tnl_cfg.out_key_present,
+                                &tnl_cfg.out_key_flow);
+ 
++    if (tnl_cfg.dst_port == htons(VXGPE_DST_PORT)) {
++        tnl_cfg.in_nsp = parse_nsp(args, "in_nsp",
++                                   &tnl_cfg.in_nsp_present,
++                                   &tnl_cfg.in_nsp_flow);
++
++        tnl_cfg.out_nsp = parse_nsp(args, "out_nsp",
++                                    &tnl_cfg.out_nsp_present,
++                                    &tnl_cfg.out_nsp_flow);
++
++        tnl_cfg.in_nsi = parse_nsi(args, "in_nsi",
++                                   &tnl_cfg.in_nsi_present,
++                                   &tnl_cfg.in_nsi_flow);
++
++        tnl_cfg.out_nsi = parse_nsi(args, "out_nsi",
++                                    &tnl_cfg.out_nsi_present,
++                                    &tnl_cfg.out_nsi_flow);
++
++        tnl_cfg.in_nshc1 = parse_nshc(args, "nshc1", "in_nshc1",
++                                     &tnl_cfg.in_nshc1_present,
++                                     &tnl_cfg.in_nshc1_flow);
++
++        tnl_cfg.out_nshc1 = parse_nshc(args, "nshc1", "out_nshc1",
++                                      &tnl_cfg.out_nshc1_present,
++                                      &tnl_cfg.out_nshc1_flow);
++
++        tnl_cfg.in_nshc2 = parse_nshc(args, "nshc2", "in_nshc2",
++                                     &tnl_cfg.in_nshc2_present,
++                                     &tnl_cfg.in_nshc2_flow);
++
++        tnl_cfg.out_nshc2 = parse_nshc(args, "nshc2", "out_nshc2",
++                                      &tnl_cfg.out_nshc2_present,
++                                      &tnl_cfg.out_nshc2_flow);
++
++        tnl_cfg.in_nshc3 = parse_nshc(args, "nshc3", "in_nshc3",
++                                     &tnl_cfg.in_nshc3_present,
++                                     &tnl_cfg.in_nshc3_flow);
++
++        tnl_cfg.out_nshc3 = parse_nshc(args, "nshc3", "out_nshc3",
++                                      &tnl_cfg.out_nshc3_present,
++                                      &tnl_cfg.out_nshc3_flow);
++
++        tnl_cfg.in_nshc4 = parse_nshc(args, "nshc4", "in_nshc4",
++                                     &tnl_cfg.in_nshc4_present,
++                                     &tnl_cfg.in_nshc4_flow);
++
++        tnl_cfg.out_nshc4 = parse_nshc(args, "nshc4", "out_nshc4",
++                                      &tnl_cfg.out_nshc4_present,
++                                      &tnl_cfg.out_nshc4_flow);
++
++        /* Default nsh service index is 1, if lower packet is dropped */
++        if (!tnl_cfg.in_nsi) {
++            tnl_cfg.in_nsi = 1;
++        }
++
++        if (!tnl_cfg.out_nsi) {
++            tnl_cfg.out_nsi = 1;
++        }
++    }
++
+     ovs_mutex_lock(&dev->mutex);
+     if (memcmp(&dev->tnl_cfg, &tnl_cfg, sizeof tnl_cfg)) {
+         dev->tnl_cfg = tnl_cfg;
+@@ -709,6 +872,130 @@ get_tunnel_config(const struct netdev *dev, struct smap *args)
+         smap_add(args, "df_default", "false");
+     }
+ 
++    if (tnl_cfg.in_nsp_flow && tnl_cfg.out_nsp_flow) {
++        smap_add(args, "nsp", "flow");
++    } else if (tnl_cfg.in_nsp_present && tnl_cfg.out_nsp_present
++               && tnl_cfg.in_nsp == tnl_cfg.out_nsp) {
++        smap_add_format(args, "nsp", "%#"PRIx32, ntohl(tnl_cfg.in_nsp));
++    } else {
++        if (tnl_cfg.in_nsp_flow) {
++            smap_add(args, "in_nsp", "flow");
++        } else if (tnl_cfg.in_nsp_present) {
++            smap_add_format(args, "in_nsp", "%#"PRIx32,
++                            ntohl(tnl_cfg.in_nsp));
++        }
++
++        if (tnl_cfg.out_nsp_flow) {
++            smap_add(args, "out_nsp", "flow");
++        } else if (tnl_cfg.out_nsp_present) {
++            smap_add_format(args, "out_nsp", "%#"PRIx32,
++                            ntohl(tnl_cfg.out_nsp));
++        }
++    }
++
++    if (tnl_cfg.in_nsi_flow && tnl_cfg.out_nsi_flow) {
++        smap_add(args, "nsi", "flow");
++    } else if (tnl_cfg.in_nsi_present && tnl_cfg.out_nsi_present
++               && tnl_cfg.in_nsi == tnl_cfg.out_nsi) {
++        smap_add_format(args, "nsi", "%"PRIu8, tnl_cfg.in_nsi);
++    } else {
++        if (tnl_cfg.in_nsi_flow) {
++            smap_add(args, "in_nsi", "flow");
++        } else if (tnl_cfg.in_nsi_present) {
++            smap_add_format(args, "in_nsi", "%"PRIu8, tnl_cfg.in_nsi);
++        }
++
++        if (tnl_cfg.out_nsi_flow) {
++            smap_add(args, "out_nsi", "flow");
++        } else if (tnl_cfg.out_nsi_present) {
++            smap_add_format(args, "out_nsi", "%"PRIu8, tnl_cfg.out_nsi);
++        }
++    }
++
++    if (tnl_cfg.in_nshc1_flow && tnl_cfg.out_nshc1_flow) {
++        smap_add(args, "nshc1", "flow");
++    } else if (tnl_cfg.in_nshc1_present && tnl_cfg.out_nshc1_present
++               && tnl_cfg.in_nshc1 == tnl_cfg.out_nshc1) {
++        smap_add_format(args, "nshc1", "%#"PRIx32, ntohl(tnl_cfg.in_nshc1));
++    } else {
++        if (tnl_cfg.in_nshc1_flow) {
++            smap_add(args, "in_nshc1", "flow");
++        } else if (tnl_cfg.in_nshc1_present) {
++            smap_add_format(args, "in_nshc1", "%#"PRIx32,
++                            ntohl(tnl_cfg.in_nshc1));
++        }
++
++        if (tnl_cfg.out_nshc1_flow) {
++            smap_add(args, "out_nshc1", "flow");
++        } else if (tnl_cfg.out_nshc1_present) {
++            smap_add_format(args, "out_nshc1", "%#"PRIx32,
++                            ntohl(tnl_cfg.out_nshc1));
++        }
++    }
++
++    if (tnl_cfg.in_nshc2_flow && tnl_cfg.out_nshc2_flow) {
++        smap_add(args, "nshc2", "flow");
++    } else if (tnl_cfg.in_nshc2_present && tnl_cfg.out_nshc2_present
++               && tnl_cfg.in_nshc2 == tnl_cfg.out_nshc2) {
++        smap_add_format(args, "nshc2", "%#"PRIx32, ntohl(tnl_cfg.in_nshc2));
++    } else {
++        if (tnl_cfg.in_nshc2_flow) {
++            smap_add(args, "in_nshc2", "flow");
++        } else if (tnl_cfg.in_nshc2_present) {
++            smap_add_format(args, "in_nshc2", "%#"PRIx32,
++                            ntohl(tnl_cfg.in_nshc2));
++        }
++
++        if (tnl_cfg.out_nshc2_flow) {
++            smap_add(args, "out_nshc2", "flow");
++        } else if (tnl_cfg.out_nshc2_present) {
++            smap_add_format(args, "out_nshc2", "%#"PRIx32,
++                            ntohl(tnl_cfg.out_nshc2));
++        }
++    }
++
++    if (tnl_cfg.in_nshc3_flow && tnl_cfg.out_nshc3_flow) {
++        smap_add(args, "nshc3", "flow");
++    } else if (tnl_cfg.in_nshc3_present && tnl_cfg.out_nshc3_present
++               && tnl_cfg.in_nshc3 == tnl_cfg.out_nshc3) {
++        smap_add_format(args, "nshc3", "%#"PRIx32, ntohl(tnl_cfg.in_nshc3));
++    } else {
++        if (tnl_cfg.in_nshc3_flow) {
++            smap_add(args, "in_nshc3", "flow");
++        } else if (tnl_cfg.in_nshc3_present) {
++            smap_add_format(args, "in_nshc3", "%#"PRIx32,
++                            ntohl(tnl_cfg.in_nshc3));
++        }
++
++        if (tnl_cfg.out_nshc3_flow) {
++            smap_add(args, "out_nshc3", "flow");
++        } else if (tnl_cfg.out_nshc3_present) {
++            smap_add_format(args, "out_nshc3", "%#"PRIx32,
++                            ntohl(tnl_cfg.out_nshc3));
++        }
++    }
++
++    if (tnl_cfg.in_nshc4_flow && tnl_cfg.out_nshc4_flow) {
++        smap_add(args, "nshc4", "flow");
++    } else if (tnl_cfg.in_nshc4_present && tnl_cfg.out_nshc4_present
++               && tnl_cfg.in_nshc4 == tnl_cfg.out_nshc4) {
++        smap_add_format(args, "nshc4", "%#"PRIx32, ntohl(tnl_cfg.in_nshc4));
++    } else {
++        if (tnl_cfg.in_nshc4_flow) {
++            smap_add(args, "in_nshc4", "flow");
++        } else if (tnl_cfg.in_nshc4_present) {
++            smap_add_format(args, "in_nshc4", "%#"PRIx32,
++                            ntohl(tnl_cfg.in_nshc4));
++        }
++
++        if (tnl_cfg.out_nshc4_flow) {
++            smap_add(args, "out_nshc4", "flow");
++        } else if (tnl_cfg.out_nshc4_present) {
++            smap_add_format(args, "out_nshc4", "%#"PRIx32,
++                            ntohl(tnl_cfg.out_nshc4));
++        }
++    }
++
+     return 0;
+ }
+ 
+@@ -1356,7 +1643,6 @@ netdev_vport_range(struct unixctl_conn *conn, int argc,
+     unixctl_command_reply(conn, "OK");
+ }
+ 
+-
+ #define VPORT_FUNCTIONS(GET_CONFIG, SET_CONFIG,             \
+                         GET_TUNNEL_CONFIG, GET_STATUS,      \
+                         BUILD_HEADER,                       \
+@@ -1427,6 +1713,7 @@ netdev_vport_range(struct unixctl_conn *conn, int argc,
+     NULL,                   /* rx_drain */
+ 
+ 
++
+ #define TUNNEL_CLASS(NAME, DPIF_PORT, BUILD_HEADER, PUSH_HEADER, POP_HEADER)   \
+     { DPIF_PORT,                                                               \
+         { NAME, VPORT_FUNCTIONS(get_tunnel_config,                             \
+diff --git a/lib/netdev.h b/lib/netdev.h
+index 0fbcb65..4dadf1c 100644
+--- a/lib/netdev.h
++++ b/lib/netdev.h
+@@ -106,6 +106,22 @@ struct netdev_stats {
+ 
+ /* Configuration specific to tunnels. */
+ struct netdev_tunnel_config {
++    bool in_nsp_present;
++    bool in_nsp_flow;
++    ovs_be32 in_nsp;            /* incoming NSH service path */
++
++    bool out_nsp_present;
++    bool out_nsp_flow;
++    ovs_be32 out_nsp;           /* outgoing NSH service path */
++
++    bool in_nsi_present;
++    bool in_nsi_flow;
++    uint8_t in_nsi;             /* incoming NSH service index */
++
++    bool out_nsi_present;
++    bool out_nsi_flow;
++    uint8_t out_nsi;            /* outgoing NSH service index */
++
+     bool in_key_present;
+     bool in_key_flow;
+     ovs_be64 in_key;
+@@ -132,6 +148,39 @@ struct netdev_tunnel_config {
+     bool csum;
+     bool ipsec;
+     bool dont_fragment;
++
++    bool in_nshc1_present;
++    bool in_nshc1_flow;
++    ovs_be32 in_nshc1;         /* incoming NSH context c1 */
++
++    bool out_nshc1_present;
++    bool out_nshc1_flow;
++    ovs_be32 out_nshc1;        /* outgoing NSH context c1 */
++
++    bool in_nshc2_present;
++    bool in_nshc2_flow;
++    ovs_be32 in_nshc2;         /* incoming NSH context c2 */
++
++    bool out_nshc2_present;
++    bool out_nshc2_flow;
++    ovs_be32 out_nshc2;        /* outgoing NSH context c2 */
++
++    bool in_nshc3_present;
++    bool in_nshc3_flow;
++    ovs_be32 in_nshc3;         /* incoming NSH context c3 */
++
++    bool out_nshc3_present;
++    bool out_nshc3_flow;
++    ovs_be32 out_nshc3;        /* outgoing NSH context c3 */
++
++    bool in_nshc4_present;
++    bool in_nshc4_flow;
++    ovs_be32 in_nshc4;         /* incoming NSH context c4 */
++
++    bool out_nshc4_present;
++    bool out_nshc4_flow;
++    ovs_be32 out_nshc4;        /* outgoing NSH context c4 */
++
+ };
+ 
+ void netdev_run(void);
+diff --git a/lib/nx-match.c b/lib/nx-match.c
+index eef2c54..7b8f09b 100644
+--- a/lib/nx-match.c
++++ b/lib/nx-match.c
+@@ -1004,6 +1004,12 @@ nx_put_raw(struct ofpbuf *b, enum ofp_version oxm, const struct match *match,
+     /* Tunnel ID. */
+     nxm_put_64m(b, MFF_TUN_ID, oxm,
+                 flow->tunnel.tun_id, match->wc.masks.tunnel.tun_id);
++    nxm_put_32m(b, MFF_NSP, oxm, flow->tunnel.nsp, match->wc.masks.tunnel.nsp);
++    nxm_put_8m(b, MFF_NSI, oxm, flow->tunnel.nsi, match->wc.masks.tunnel.nsi);
++    nxm_put_32m(b, MFF_NSH_C1, oxm, flow->tunnel.nshc1, match->wc.masks.tunnel.nshc1);
++    nxm_put_32m(b, MFF_NSH_C2, oxm, flow->tunnel.nshc2, match->wc.masks.tunnel.nshc2);
++    nxm_put_32m(b, MFF_NSH_C3, oxm, flow->tunnel.nshc3, match->wc.masks.tunnel.nshc3);
++    nxm_put_32m(b, MFF_NSH_C4, oxm, flow->tunnel.nshc4, match->wc.masks.tunnel.nshc4);
+ 
+     /* Other tunnel metadata. */
+     nxm_put_16m(b, MFF_TUN_FLAGS, oxm,
+diff --git a/lib/odp-util.c b/lib/odp-util.c
+index c173623..e8bc86d 100644
+--- a/lib/odp-util.c
++++ b/lib/odp-util.c
+@@ -1181,6 +1181,12 @@ static const struct attr_len_tbl ovs_tun_key_attr_lens[OVS_TUNNEL_KEY_ATTR_MAX +
+     [OVS_TUNNEL_KEY_ATTR_TP_SRC]        = { .len = 2 },
+     [OVS_TUNNEL_KEY_ATTR_TP_DST]        = { .len = 2 },
+     [OVS_TUNNEL_KEY_ATTR_OAM]           = { .len = 0 },
++    [OVS_TUNNEL_KEY_ATTR_NSP]           = { .len = 4 },
++    [OVS_TUNNEL_KEY_ATTR_NSI]           = { .len = 1 },
++    [OVS_TUNNEL_KEY_ATTR_NSH_C1]        = { .len = 4 },
++    [OVS_TUNNEL_KEY_ATTR_NSH_C2]        = { .len = 4 },
++    [OVS_TUNNEL_KEY_ATTR_NSH_C3]        = { .len = 4 },
++    [OVS_TUNNEL_KEY_ATTR_NSH_C4]        = { .len = 4 },
+     [OVS_TUNNEL_KEY_ATTR_GENEVE_OPTS]   = { .len = ATTR_LEN_VARIABLE },
+     [OVS_TUNNEL_KEY_ATTR_VXLAN_OPTS]    = { .len = ATTR_LEN_NESTED,
+                                             .next = ovs_vxlan_ext_attr_lens ,
+@@ -1340,7 +1346,30 @@ odp_tun_key_from_attr__(const struct nlattr *attr,
+                 return ODP_FIT_ERROR;
+             }
+             break;
+-
++        case OVS_TUNNEL_KEY_ATTR_NSP:
++            tun->nsp = nl_attr_get_be32(a);
++            tun->flags |= FLOW_TNL_F_NSP;
++            break;
++        case OVS_TUNNEL_KEY_ATTR_NSI:
++            tun->nsi = nl_attr_get_u8(a);
++            tun->flags |= FLOW_TNL_F_NSI;
++            break;
++        case OVS_TUNNEL_KEY_ATTR_NSH_C1:
++            tun->nshc1 = nl_attr_get_be32(a);
++            tun->flags |= FLOW_TNL_F_NSH_C1;
++            break;
++        case OVS_TUNNEL_KEY_ATTR_NSH_C2:
++            tun->nshc2 = nl_attr_get_be32(a);
++            tun->flags |= FLOW_TNL_F_NSH_C2;
++            break;
++        case OVS_TUNNEL_KEY_ATTR_NSH_C3:
++            tun->nshc3 = nl_attr_get_be32(a);
++            tun->flags |= FLOW_TNL_F_NSH_C3;
++            break;
++        case OVS_TUNNEL_KEY_ATTR_NSH_C4:
++            tun->nshc4 = nl_attr_get_be32(a);
++            tun->flags |= FLOW_TNL_F_NSH_C4;
++            break;
+         default:
+             /* Allow this to show up as unexpected, if there are unknown
+              * tunnel attribute, eventually resulting in ODP_FIT_TOO_MUCH. */
+@@ -1413,6 +1442,24 @@ tun_key_to_attr(struct ofpbuf *a, const struct flow_tnl *tun_key,
+         nl_msg_end_nested(a, vxlan_opts_ofs);
+     }
+     tun_metadata_to_geneve_nlattr(tun_key, tun_flow_key, key_buf, a);
++    if (tun_key->nsp || tun_key->flags & FLOW_TNL_F_NSP) {
++        nl_msg_put_be32(a, OVS_TUNNEL_KEY_ATTR_NSP, tun_key->nsp);
++    }
++    if (tun_key->nsi || tun_key->flags & FLOW_TNL_F_NSI) {
++        nl_msg_put_u8(a, OVS_TUNNEL_KEY_ATTR_NSI, tun_key->nsi);
++    }
++    if (tun_key->nshc1 || tun_key->flags & FLOW_TNL_F_NSH_C1) {
++        nl_msg_put_be32(a, OVS_TUNNEL_KEY_ATTR_NSH_C1, tun_key->nshc1);
++    }
++    if (tun_key->nshc2 || tun_key->flags & FLOW_TNL_F_NSH_C2) {
++        nl_msg_put_be32(a, OVS_TUNNEL_KEY_ATTR_NSH_C2, tun_key->nshc2);
++    }
++    if (tun_key->nshc3 || tun_key->flags & FLOW_TNL_F_NSH_C3) {
++        nl_msg_put_be32(a, OVS_TUNNEL_KEY_ATTR_NSH_C3, tun_key->nshc3);
++    }
++    if (tun_key->nshc4 || tun_key->flags & FLOW_TNL_F_NSH_C4) {
++        nl_msg_put_be32(a, OVS_TUNNEL_KEY_ATTR_NSH_C4, tun_key->nshc4);
++    }
+ 
+     nl_msg_end_nested(a, tun_key_ofs);
+ }
+@@ -1677,6 +1724,24 @@ format_be16x(struct ds *ds, const char *name, ovs_be16 key,
+     }
+ }
+ 
++
++static void
++format_be32(struct ds *ds, const char *name, ovs_be32 key,
++            const ovs_be32 *mask, bool verbose)
++{
++    bool mask_empty = mask && !*mask;
++
++    if (verbose || !mask_empty) {
++        bool mask_full = !mask || *mask == OVS_BE32_MAX;
++
++        ds_put_format(ds, "%s=%"PRIx32, name, ntohl(key));
++        if (!mask_full) { /* Partially masked. */
++            ds_put_format(ds, "/%#"PRIx32, ntohl(*mask));
++        }
++        ds_put_char(ds, ',');
++    }
++}
++
+ static void
+ format_tun_flags(struct ds *ds, const char *name, uint16_t key,
+                  const uint16_t *mask, bool verbose)
+@@ -1953,6 +2018,54 @@ format_odp_tun_attr(const struct nlattr *attr, const struct nlattr *mask_attr,
+             format_be16(ds, "tp_dst", nl_attr_get_be16(a),
+                         ma ? nl_attr_get(ma) : NULL, verbose);
+             break;
++        case OVS_TUNNEL_KEY_ATTR_NSP:
++            format_be32(ds, "nsp", nl_attr_get_be32(a),
++                        ma ? nl_attr_get(ma) : NULL, verbose);
++        flags |= FLOW_TNL_F_NSP;
++            if (ma) {
++                mask_flags |= FLOW_TNL_F_NSP;
++            }
++            break;
++        case OVS_TUNNEL_KEY_ATTR_NSI:
++            format_u8u(ds, "nsi", nl_attr_get_u8(a),
++                        ma ? nl_attr_get(ma) : NULL, verbose);
++        flags |= FLOW_TNL_F_NSI;
++            if (ma) {
++                mask_flags |= FLOW_TNL_F_NSI;
++            }
++            break;
++        case OVS_TUNNEL_KEY_ATTR_NSH_C1:
++            format_be32(ds, "nshc1", nl_attr_get_be32(a),
++                        ma ? nl_attr_get(ma) : NULL, verbose);
++        flags |= FLOW_TNL_F_NSH_C1;
++            if (ma) {
++                mask_flags |= FLOW_TNL_F_NSH_C1;
++            }
++            break;
++        case OVS_TUNNEL_KEY_ATTR_NSH_C2:
++            format_be32(ds, "nshc2", nl_attr_get_be32(a),
++                        ma ? nl_attr_get(ma) : NULL, verbose);
++        flags |= FLOW_TNL_F_NSH_C2;
++            if (ma) {
++                mask_flags |= FLOW_TNL_F_NSH_C2;
++            }
++            break;
++        case OVS_TUNNEL_KEY_ATTR_NSH_C3:
++            format_be32(ds, "nshc3", nl_attr_get_be32(a),
++                        ma ? nl_attr_get(ma) : NULL, verbose);
++        flags |= FLOW_TNL_F_NSH_C3;
++            if (ma) {
++                mask_flags |= FLOW_TNL_F_NSH_C3;
++            }
++            break;
++        case OVS_TUNNEL_KEY_ATTR_NSH_C4:
++            format_be32(ds, "nshc4", nl_attr_get_be32(a),
++                        ma ? nl_attr_get(ma) : NULL, verbose);
++        flags |= FLOW_TNL_F_NSH_C4;
++            if (ma) {
++                mask_flags |= FLOW_TNL_F_NSH_C4;
++            }
++            break;
+         case OVS_TUNNEL_KEY_ATTR_OAM:
+ 	    flags |= FLOW_TNL_F_OAM;
+             break;
+@@ -2016,6 +2129,8 @@ format_frag(struct ds *ds, const char *name, uint8_t key,
+     }
+ }
+ 
++
++
+ static void
+ format_odp_key_attr(const struct nlattr *a, const struct nlattr *ma,
+                     const struct hmap *portno_names, struct ds *ds,
+@@ -2546,6 +2661,29 @@ scan_be16(const char *s, ovs_be16 *key, ovs_be16 *mask)
+ }
+ 
+ static int
++scan_be32(const char *s, ovs_be32 *key, ovs_be32 *mask)
++{
++    uint32_t key_, mask_;
++    int n;
++
++    if (ovs_scan(s, "%"SCNi32"%n", &key_, &n)) {
++        int len = n;
++
++        *key = htonl(key_);
++        if (mask) {
++            if (ovs_scan(s + len, "/%"SCNi32"%n", &mask_, &n)) {
++                len += n;
++                *mask = htonl(mask_);
++            } else {
++                *mask = OVS_BE32_MAX;
++            }
++        }
++        return len;
++    }
++    return 0;
++}
++
++static int
+ scan_be64(const char *s, ovs_be64 *key, ovs_be64 *mask)
+ {
+     uint64_t key_, mask_;
+@@ -3135,12 +3273,19 @@ parse_odp_key_mask_attr(const char *s, const struct simap *port_names,
+         SCAN_FIELD_NESTED("ttl=", uint8_t, u8, OVS_TUNNEL_KEY_ATTR_TTL);
+         SCAN_FIELD_NESTED("tp_src=", ovs_be16, be16, OVS_TUNNEL_KEY_ATTR_TP_SRC);
+         SCAN_FIELD_NESTED("tp_dst=", ovs_be16, be16, OVS_TUNNEL_KEY_ATTR_TP_DST);
++        SCAN_FIELD_NESTED("nsi=", uint8_t, u8, OVS_TUNNEL_KEY_ATTR_NSI);
++        SCAN_FIELD_NESTED("nsp=", ovs_be32, be32, OVS_TUNNEL_KEY_ATTR_NSP);
++        SCAN_FIELD_NESTED("nshc1=", ovs_be32, be32, OVS_TUNNEL_KEY_ATTR_NSH_C1);
++        SCAN_FIELD_NESTED("nshc2=", ovs_be32, be32, OVS_TUNNEL_KEY_ATTR_NSH_C2);
++        SCAN_FIELD_NESTED("nshc3=", ovs_be32, be32, OVS_TUNNEL_KEY_ATTR_NSH_C3);
++        SCAN_FIELD_NESTED("nshc4=", ovs_be32, be32, OVS_TUNNEL_KEY_ATTR_NSH_C4);
+         SCAN_FIELD_NESTED_FUNC("vxlan(gbp(", uint32_t, vxlan_gbp, vxlan_gbp_to_attr);
+         SCAN_FIELD_NESTED_FUNC("geneve(", struct geneve_scan, geneve,
+                                geneve_to_attr);
+         SCAN_FIELD_NESTED_FUNC("flags(", uint16_t, tun_flags, tun_flags_to_attr);
+     } SCAN_END_NESTED();
+ 
++
+     SCAN_SINGLE_PORT("in_port(", uint32_t, OVS_KEY_ATTR_IN_PORT);
+ 
+     SCAN_BEGIN("eth(", struct ovs_key_ethernet) {
+diff --git a/lib/odp-util.h b/lib/odp-util.h
+index bc27794..9f8e741 100644
+--- a/lib/odp-util.h
++++ b/lib/odp-util.h
+@@ -116,6 +116,12 @@ void odp_portno_names_destroy(struct hmap *portno_names);
+  *  - OVS_TUNNEL_KEY_ATTR_OAM            0    --     4      4
+  *  - OVS_TUNNEL_KEY_ATTR_GENEVE_OPTS    256  --     4      260
+  *  - OVS_TUNNEL_KEY_ATTR_VXLAN_OPTS     -    --     -      - (shared with _GENEVE_OPTS)
++ *  - OVS_TUNNEL_KEY_ATTR_NSP            4    --     4      8
++ *  - OVS_TUNNEL_KEY_ATTR_NSI            1    3      4      8
++ *  - OVS_TUNNEL_KEY_ATTR_NSH_C1         4    --     4      8
++ *  - OVS_TUNNEL_KEY_ATTR_NSH_C2         4    --     4      8
++ *  - OVS_TUNNEL_KEY_ATTR_NSH_C3         4    --     4      8
++ *  - OVS_TUNNEL_KEY_ATTR_NSH_C4         4    --     4      8
+  *  OVS_KEY_ATTR_IN_PORT                 4    --     4      8
+  *  OVS_KEY_ATTR_SKB_MARK                4    --     4      8
+  *  OVS_KEY_ATTR_DP_HASH                 4    --     4      8
+@@ -129,7 +135,7 @@ void odp_portno_names_destroy(struct hmap *portno_names);
+  *  OVS_KEY_ATTR_ICMPV6                  2     2     4      8
+  *  OVS_KEY_ATTR_ND                     28    --     4     32
+  *  ----------------------------------------------------------
+- *  total                                                 488
++ *  total                                                 536
+  *
+  * We include some slack space in case the calculation isn't quite right or we
+  * add another field and forget to adjust this value.
+diff --git a/lib/ofp-actions.c b/lib/ofp-actions.c
+index 88f0f85..b35daa8 100644
+--- a/lib/ofp-actions.c
++++ b/lib/ofp-actions.c
+@@ -286,6 +286,24 @@ enum ofp_raw_action_type {
+     /* NX1.0+(34): struct nx_action_conjunction. */
+     NXAST_RAW_CONJUNCTION,
+ 
++    /* NX1.0+(106): uint8_t. */
++    NXAST_RAW_SET_NSI,
++
++    /* NX1.0+(105): ovs_be32. */
++    NXAST_RAW_SET_NSP,
++
++    /* NX1.0+(107): ovs_be32. */
++    NXAST_RAW_SET_NSH_C1,
++
++    /* NX1.0+(108): ovs_be32. */
++    NXAST_RAW_SET_NSH_C2,
++
++    /* NX1.0+(109): ovs_be32. */
++    NXAST_RAW_SET_NSH_C3,
++
++    /* NX1.0+(110): ovs_be32. */
++    NXAST_RAW_SET_NSH_C4,
++
+ /* ## ------------------ ## */
+ /* ## Debugging actions. ## */
+ /* ## ------------------ ## */
+@@ -3179,7 +3197,310 @@ format_SET_TUNNEL(const struct ofpact_tunnel *a, struct ds *s)
+                    || a->ofpact.raw == NXAST_RAW_SET_TUNNEL64 ? "64" : ""),
+                   a->tun_id);
+ }
+-
++
++/* Action structure for NXAST_SET_NSP.
++ *
++ * Sets the encapsulating NSH service path ID to a 32-bit value. */
++
++/* Set NSI actions. */
++static enum ofperr
++decode_NXAST_RAW_SET_NSI(const uint8_t nsi, struct ofpbuf * out)
++{
++    struct ofpact_nsi *pnsi = ofpact_put_SET_NSI(out);
++    pnsi->ofpact.raw = NXAST_RAW_SET_NSI;
++    pnsi->nsi = nsi;
++
++    return 0;
++}
++
++static void
++encode_SET_NSI(const struct ofpact_nsi *pnsi,
++                  enum ofp_version ofp_version, struct ofpbuf *out)
++{
++    uint8_t nsi = pnsi->nsi;
++
++    if (ofp_version < OFP12_VERSION) {
++        put_NXAST_SET_NSI(out, nsi);
++    } else {
++        ofpact_put_set_field(out, ofp_version, MFF_NSI, nsi);
++    }
++}
++
++static char * OVS_WARN_UNUSED_RESULT
++parse_set_nsi(char *arg, struct ofpbuf *ofpacts,
++                 enum ofp_raw_action_type raw)
++{
++    struct ofpact_nsi *pnsi;
++
++    pnsi = ofpact_put_SET_NSI(ofpacts);
++    pnsi->ofpact.raw = raw;
++
++    return str_to_u8(arg, "nsi", &pnsi->nsi);
++}
++
++static char * OVS_WARN_UNUSED_RESULT
++parse_SET_NSI(char *arg, struct ofpbuf *ofpacts,
++                 enum ofputil_protocol *usable_protocols OVS_UNUSED)
++{
++    return parse_set_nsi(arg, ofpacts, NXAST_RAW_SET_NSI);
++}
++
++static void
++format_SET_NSI(const struct ofpact_nsi *a, struct ds *s)
++{
++    ds_put_format(s, "set_nsi:%d", a->nsi);
++}
++
++/* Set NSP actions. */
++static enum ofperr
++decode_NXAST_RAW_SET_NSP(const ovs_be32 nsp, struct ofpbuf * out)
++{
++    struct ofpact_nsp *pnsp = ofpact_put_SET_NSP(out);
++    pnsp->ofpact.raw = NXAST_RAW_SET_NSP;
++    pnsp->nsp = nsp;
++
++    return 0;
++}
++
++static void
++encode_SET_NSP(const struct ofpact_nsp *pnsp,
++                  enum ofp_version ofp_version, struct ofpbuf *out)
++{
++    uint32_t nsp = pnsp->nsp;
++
++    if (ofp_version < OFP12_VERSION) {
++        put_NXAST_SET_NSP(out, nsp);
++    } else {
++        ofpact_put_set_field(out, ofp_version, MFF_NSP, nsp);
++    }
++}
++
++static char * OVS_WARN_UNUSED_RESULT
++parse_set_nsp(char *arg, struct ofpbuf *ofpacts,
++                 enum ofp_raw_action_type raw)
++{
++    struct ofpact_nsp *pnsp;
++
++    pnsp = ofpact_put_SET_NSP(ofpacts);
++    pnsp->ofpact.raw = raw;
++
++    return str_to_be32(arg, &pnsp->nsp);
++}
++
++static char * OVS_WARN_UNUSED_RESULT
++parse_SET_NSP(char *arg, struct ofpbuf *ofpacts,
++                 enum ofputil_protocol *usable_protocols OVS_UNUSED)
++{
++    return parse_set_nsp(arg, ofpacts, NXAST_RAW_SET_NSP);
++}
++
++static void
++format_SET_NSP(const struct ofpact_nsp *a, struct ds *s)
++{
++    ds_put_format(s, "set_nsp:%#"PRIx32, ntohl(a->nsp));
++}
++
++
++/* Set NSH_C1 actions. */
++static enum ofperr
++decode_NXAST_RAW_SET_NSH_C1(const ovs_be32 nshc1, struct ofpbuf * out)
++{
++    struct ofpact_nshc1 *pnshc1= ofpact_put_SET_NSH_C1(out);
++    pnshc1->ofpact.raw = NXAST_RAW_SET_NSH_C1;
++    pnshc1->nshc1 = nshc1;
++
++    return 0;
++}
++
++static void
++encode_SET_NSH_C1(const struct ofpact_nshc1 *pnshc1,
++                  enum ofp_version ofp_version, struct ofpbuf *out)
++{
++    uint32_t nshc1 = pnshc1->nshc1;
++
++    if (ofp_version < OFP12_VERSION) {
++        put_NXAST_SET_NSH_C1(out, nshc1);
++    } else {
++        ofpact_put_set_field(out, ofp_version, MFF_NSH_C1, nshc1);
++    }
++}
++
++static char * OVS_WARN_UNUSED_RESULT
++parse_set_nshc1(char *arg, struct ofpbuf *ofpacts,
++                 enum ofp_raw_action_type raw)
++{
++    struct ofpact_nshc1 *pnshc1;
++
++    pnshc1 = ofpact_put_SET_NSH_C1(ofpacts);
++    pnshc1->ofpact.raw = raw;
++
++    return str_to_be32(arg, &pnshc1->nshc1);
++}
++
++static char * OVS_WARN_UNUSED_RESULT
++parse_SET_NSH_C1(char *arg, struct ofpbuf *ofpacts,
++                 enum ofputil_protocol *usable_protocols OVS_UNUSED)
++{
++    return parse_set_nshc1(arg, ofpacts, NXAST_RAW_SET_NSH_C1);
++}
++
++static void
++format_SET_NSH_C1(const struct ofpact_nshc1 *a, struct ds *s)
++{
++    ds_put_format(s, "set_nshc1:%#"PRIx32, ntohl(a->nshc1));
++}
++
++
++/* Set NSH_C2 actions. */
++static enum ofperr
++decode_NXAST_RAW_SET_NSH_C2(const ovs_be32 nshc2, struct ofpbuf * out)
++{
++    struct ofpact_nshc2 *pnshc2= ofpact_put_SET_NSH_C2(out);
++    pnshc2->ofpact.raw = NXAST_RAW_SET_NSH_C2;
++    pnshc2->nshc2 = nshc2;
++
++    return 0;
++}
++
++static void
++encode_SET_NSH_C2(const struct ofpact_nshc2 *pnshc2,
++                  enum ofp_version ofp_version, struct ofpbuf *out)
++{
++    uint32_t nshc2 = pnshc2->nshc2;
++
++    if (ofp_version < OFP12_VERSION) {
++        put_NXAST_SET_NSH_C2(out, nshc2);
++    } else {
++        ofpact_put_set_field(out, ofp_version, MFF_NSH_C2, nshc2);
++    }
++}
++
++static char * OVS_WARN_UNUSED_RESULT
++parse_set_nshc2(char *arg, struct ofpbuf *ofpacts,
++                 enum ofp_raw_action_type raw)
++{
++    struct ofpact_nshc2 *pnshc2;
++
++    pnshc2 = ofpact_put_SET_NSH_C2(ofpacts);
++    pnshc2->ofpact.raw = raw;
++
++    return str_to_be32(arg, &pnshc2->nshc2);
++}
++
++static char * OVS_WARN_UNUSED_RESULT
++parse_SET_NSH_C2(char *arg, struct ofpbuf *ofpacts,
++                 enum ofputil_protocol *usable_protocols OVS_UNUSED)
++{
++    return parse_set_nshc2(arg, ofpacts, NXAST_RAW_SET_NSH_C2);
++}
++
++static void
++format_SET_NSH_C2(const struct ofpact_nshc2 *a, struct ds *s)
++{
++    ds_put_format(s, "set_nshc2:%#"PRIx32, ntohl(a->nshc2));
++}
++
++
++/* Set NSH_C3 actions. */
++static enum ofperr
++decode_NXAST_RAW_SET_NSH_C3(const ovs_be32 nshc3, struct ofpbuf * out)
++{
++    struct ofpact_nshc3 *pnshc3= ofpact_put_SET_NSH_C3(out);
++    pnshc3->ofpact.raw = NXAST_RAW_SET_NSH_C3;
++    pnshc3->nshc3 = nshc3;
++
++    return 0;
++}
++
++static void
++encode_SET_NSH_C3(const struct ofpact_nshc3 *pnshc3,
++                  enum ofp_version ofp_version, struct ofpbuf *out)
++{
++    uint32_t nshc3 = pnshc3->nshc3;
++
++    if (ofp_version < OFP12_VERSION) {
++        put_NXAST_SET_NSH_C3(out, nshc3);
++    } else {
++        ofpact_put_set_field(out, ofp_version, MFF_NSH_C3, nshc3);
++    }
++}
++
++static char * OVS_WARN_UNUSED_RESULT
++parse_set_nshc3(char *arg, struct ofpbuf *ofpacts,
++                 enum ofp_raw_action_type raw)
++{
++    struct ofpact_nshc3 *pnshc3;
++
++    pnshc3 = ofpact_put_SET_NSH_C3(ofpacts);
++    pnshc3->ofpact.raw = raw;
++
++    return str_to_be32(arg, &pnshc3->nshc3);
++}
++
++static char * OVS_WARN_UNUSED_RESULT
++parse_SET_NSH_C3(char *arg, struct ofpbuf *ofpacts,
++                 enum ofputil_protocol *usable_protocols OVS_UNUSED)
++{
++    return parse_set_nshc3(arg, ofpacts, NXAST_RAW_SET_NSH_C3);
++}
++
++static void
++format_SET_NSH_C3(const struct ofpact_nshc3 *a, struct ds *s)
++{
++    ds_put_format(s, "set_nshc3:%#"PRIx32, ntohl(a->nshc3));
++}
++
++
++
++/* Set NSH_C4 actions. */
++static enum ofperr
++decode_NXAST_RAW_SET_NSH_C4(const ovs_be32 nshc4, struct ofpbuf * out)
++{
++    struct ofpact_nshc4 *pnshc4= ofpact_put_SET_NSH_C4(out);
++    pnshc4->ofpact.raw = NXAST_RAW_SET_NSH_C4;
++    pnshc4->nshc4 = nshc4;
++
++    return 0;
++}
++
++static void
++encode_SET_NSH_C4(const struct ofpact_nshc4 *pnshc4,
++                  enum ofp_version ofp_version, struct ofpbuf *out)
++{
++    uint32_t nshc4 = pnshc4->nshc4;
++
++    if (ofp_version < OFP12_VERSION) {
++        put_NXAST_SET_NSH_C4(out, nshc4);
++    } else {
++        ofpact_put_set_field(out, ofp_version, MFF_NSH_C4, nshc4);
++    }
++}
++
++static char * OVS_WARN_UNUSED_RESULT
++parse_set_nshc4(char *arg, struct ofpbuf *ofpacts,
++                 enum ofp_raw_action_type raw)
++{
++    struct ofpact_nshc4 *pnshc4;
++
++    pnshc4 = ofpact_put_SET_NSH_C4(ofpacts);
++    pnshc4->ofpact.raw = raw;
++
++    return str_to_be32(arg, &pnshc4->nshc4);
++}
++
++static char * OVS_WARN_UNUSED_RESULT
++parse_SET_NSH_C4(char *arg, struct ofpbuf *ofpacts,
++                 enum ofputil_protocol *usable_protocols OVS_UNUSED)
++{
++    return parse_set_nshc4(arg, ofpacts, NXAST_RAW_SET_NSH_C4);
++}
++
++static void
++format_SET_NSH_C4(const struct ofpact_nshc4 *a, struct ds *s)
++{
++    ds_put_format(s, "set_nshc4:%#"PRIx32, ntohl(a->nshc4));
++}
++
+ /* Set queue action. */
+ 
+ static enum ofperr
+@@ -4831,6 +5152,12 @@ ofpact_is_set_or_move_action(const struct ofpact *a)
+     case OFPACT_SET_TUNNEL:
+     case OFPACT_SET_VLAN_PCP:
+     case OFPACT_SET_VLAN_VID:
++    case OFPACT_SET_NSP:
++    case OFPACT_SET_NSI:
++    case OFPACT_SET_NSH_C1:
++    case OFPACT_SET_NSH_C2:
++    case OFPACT_SET_NSH_C3:
++    case OFPACT_SET_NSH_C4:
+         return true;
+     case OFPACT_BUNDLE:
+     case OFPACT_CLEAR_ACTIONS:
+@@ -4900,6 +5227,12 @@ ofpact_is_allowed_in_actions_set(const struct ofpact *a)
+     case OFPACT_SET_VLAN_PCP:
+     case OFPACT_SET_VLAN_VID:
+     case OFPACT_STRIP_VLAN:
++    case OFPACT_SET_NSP:
++    case OFPACT_SET_NSI:
++    case OFPACT_SET_NSH_C1:
++    case OFPACT_SET_NSH_C2:
++    case OFPACT_SET_NSH_C3:
++    case OFPACT_SET_NSH_C4:
+         return true;
+ 
+     /* In general these actions are excluded because they are not part of
+@@ -5136,6 +5469,12 @@ ovs_instruction_type_from_ofpact_type(enum ofpact_type type)
+     case OFPACT_EXIT:
+     case OFPACT_UNROLL_XLATE:
+     case OFPACT_SAMPLE:
++    case OFPACT_SET_NSP:
++    case OFPACT_SET_NSI:
++    case OFPACT_SET_NSH_C1:
++    case OFPACT_SET_NSH_C2:
++    case OFPACT_SET_NSH_C3:
++    case OFPACT_SET_NSH_C4:
+     case OFPACT_DEBUG_RECIRC:
+     default:
+         return OVSINST_OFPIT11_APPLY_ACTIONS;
+@@ -5654,6 +5993,12 @@ ofpact_check__(enum ofputil_protocol *usable_protocols, struct ofpact *a,
+     case OFPACT_SET_QUEUE:
+     case OFPACT_POP_QUEUE:
+     case OFPACT_RESUBMIT:
++    case OFPACT_SET_NSP:
++    case OFPACT_SET_NSI:
++    case OFPACT_SET_NSH_C1:
++    case OFPACT_SET_NSH_C2:
++    case OFPACT_SET_NSH_C3:
++    case OFPACT_SET_NSH_C4:
+         return 0;
+ 
+     case OFPACT_FIN_TIMEOUT:
+@@ -6161,6 +6506,12 @@ ofpact_outputs_to_port(const struct ofpact *ofpact, ofp_port_t port)
+     case OFPACT_GOTO_TABLE:
+     case OFPACT_METER:
+     case OFPACT_GROUP:
++    case OFPACT_SET_NSI:
++    case OFPACT_SET_NSP:
++    case OFPACT_SET_NSH_C1:
++    case OFPACT_SET_NSH_C2:
++    case OFPACT_SET_NSH_C3:
++    case OFPACT_SET_NSH_C4:
+     case OFPACT_DEBUG_RECIRC:
+     default:
+         return false;
+diff --git a/lib/ofp-actions.h b/lib/ofp-actions.h
+index 51b2963..876c457 100644
+--- a/lib/ofp-actions.h
++++ b/lib/ofp-actions.h
+@@ -92,6 +92,12 @@
+     OFPACT(SET_QUEUE,       ofpact_queue,       ofpact, "set_queue")    \
+     OFPACT(POP_QUEUE,       ofpact_null,        ofpact, "pop_queue")    \
+     OFPACT(FIN_TIMEOUT,     ofpact_fin_timeout, ofpact, "fin_timeout")  \
++    OFPACT(SET_NSI,         ofpact_nsi,         ofpact, "set_nsi")      \
++    OFPACT(SET_NSP,         ofpact_nsp,         ofpact, "set_nsp")      \
++    OFPACT(SET_NSH_C1,      ofpact_nshc1,       ofpact, "set_nshc1")    \
++    OFPACT(SET_NSH_C2,      ofpact_nshc2,       ofpact, "set_nshc2")    \
++    OFPACT(SET_NSH_C3,      ofpact_nshc3,       ofpact, "set_nshc3")    \
++    OFPACT(SET_NSH_C4,      ofpact_nshc4,       ofpact, "set_nshc4")    \
+                                                                         \
+     /* Flow table interaction. */                                       \
+     OFPACT(RESUBMIT,        ofpact_resubmit,    ofpact, "resubmit")     \
+@@ -425,6 +431,48 @@ struct ofpact_tunnel {
+     uint64_t tun_id;
+ };
+ 
++/* OFPACT_SET_NSI.
++ * Used for NXAST_SET_NSI */
++struct ofpact_nsi {
++    struct ofpact ofpact;
++    uint8_t nsi;
++};
++
++/* OFPACT_SET_NSP.
++ * Used for NXAST_SET_NSP */
++struct ofpact_nsp {
++    struct ofpact ofpact;
++    ovs_be32 nsp;
++};
++
++/* OFPACT_SET_NSH_C1.
++ * Used for NXAST_SET_NSH_C1 */
++struct ofpact_nshc1 {
++    struct ofpact ofpact;
++    ovs_be32 nshc1;
++};
++
++/* OFPACT_SET_NSH_C2.
++ * Used for NXAST_SET_NSH_C2 */
++struct ofpact_nshc2 {
++    struct ofpact ofpact;
++    ovs_be32 nshc2;
++};
++
++/* OFPACT_SET_NSH_C3.
++ * Used for NXAST_SET_NSH_C3 */
++struct ofpact_nshc3 {
++    struct ofpact ofpact;
++    ovs_be32 nshc3;
++};
++
++/* OFPACT_SET_NSH_C4.
++ * Used for NXAST_SET_NSH_C4 */
++struct ofpact_nshc4 {
++    struct ofpact ofpact;
++    ovs_be32 nshc4;
++};
++
+ /* OFPACT_SET_QUEUE.
+  *
+  * Used for NXAST_SET_QUEUE. */
+diff --git a/lib/ofp-parse.c b/lib/ofp-parse.c
+index 5950f06..099d3df 100644
+--- a/lib/ofp-parse.c
++++ b/lib/ofp-parse.c
+@@ -139,6 +139,19 @@ str_to_be64(const char *str, ovs_be64 *valuep)
+     return error;
+ }
+ 
++char * OVS_WARN_UNUSED_RESULT
++str_to_be32(const char *str, ovs_be32 *valuep)
++{
++    uint32_t value = 0;
++    char *error;
++
++    error = str_to_u32(str, &value);
++    if (!error) {
++        *valuep = htonl(value);
++    }
++    return error;
++}
++
+ /* Parses 'str' as an Ethernet address into 'mac'.
+  *
+  * Returns NULL if successful, otherwise a malloc()'d string describing the
+diff --git a/lib/ofp-parse.h b/lib/ofp-parse.h
+index b64a32e..47d385b 100644
+--- a/lib/ofp-parse.h
++++ b/lib/ofp-parse.h
+@@ -98,6 +98,7 @@ char *str_to_u32(const char *str, uint32_t *valuep) OVS_WARN_UNUSED_RESULT;
+ char *str_to_u64(const char *str, uint64_t *valuep) OVS_WARN_UNUSED_RESULT;
+ char *str_to_be64(const char *str, ovs_be64 *valuep) OVS_WARN_UNUSED_RESULT;
+ char *str_to_mac(const char *str, struct eth_addr *mac) OVS_WARN_UNUSED_RESULT;
++char *str_to_be32(const char *str, ovs_be32 *valuep) OVS_WARN_UNUSED_RESULT;
+ char *str_to_ip(const char *str, ovs_be32 *ip) OVS_WARN_UNUSED_RESULT;
+ 
+ #endif /* ofp-parse.h */
+diff --git a/lib/packets.h b/lib/packets.h
+index 4fb1427..12f2239 100644
+--- a/lib/packets.h
++++ b/lib/packets.h
+@@ -45,7 +45,12 @@ struct flow_tnl {
+     ovs_be16 tp_dst;
+     ovs_be16 gbp_id;
+     uint8_t  gbp_flags;
+-    uint8_t  pad1[5];        /* Pad to 64 bits. */
++    uint8_t nsi;
++    ovs_be32 nsp;
++    ovs_be32 nshc1;
++    ovs_be32 nshc2;
++    ovs_be32 nshc3;
++    ovs_be32 nshc4;
+     struct tun_metadata metadata;
+ };
+ 
+@@ -69,6 +74,12 @@ struct flow_tnl {
+ 
+ /* Tunnel information is in userspace datapath format. */
+ #define FLOW_TNL_F_UDPIF (1 << 4)
++#define FLOW_TNL_F_NSP (1 << 5)
++#define FLOW_TNL_F_NSI (1 << 6)
++#define FLOW_TNL_F_NSH_C1 (1 << 7)
++#define FLOW_TNL_F_NSH_C2 (1 << 8)
++#define FLOW_TNL_F_NSH_C3 (1 << 9)
++#define FLOW_TNL_F_NSH_C4 (1 << 10)
+ 
+ /* Returns an offset to 'src' covering all the meaningful fields in 'src'. */
+ static inline size_t
+@@ -899,6 +910,9 @@ struct vxlanhdr {
+     ovs_16aligned_be32 vx_vni;
+ };
+ 
++/* VXLAN GPE UDP DST PORT */
++#define VXGPE_DST_PORT 4790
++
+ #define VXLAN_FLAGS 0x08000000  /* struct vxlanhdr.vx_flags required value. */
+ 
+ void format_ipv6_addr(char *addr_str, const struct in6_addr *addr);
+diff --git a/ofproto/ofproto-dpif-xlate.c b/ofproto/ofproto-dpif-xlate.c
+index 4ed73a3..4bb9801 100644
+--- a/ofproto/ofproto-dpif-xlate.c
++++ b/ofproto/ofproto-dpif-xlate.c
+@@ -4032,7 +4032,6 @@ recirc_put_unroll_xlate(struct xlate_ctx *ctx)
+     }
+ }
+ 
+-
+ /* Copy remaining actions to the action_set to be executed after recirculation.
+  * UNROLL_XLATE action is inserted, if not already done so, before actions that
+  * may generate PACKET_INs from the current table and without matching another
+@@ -4096,6 +4095,12 @@ recirc_unroll_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
+         case OFPACT_METER:
+         case OFPACT_SAMPLE:
+         case OFPACT_DEBUG_RECIRC:
++        case OFPACT_SET_NSP:
++        case OFPACT_SET_NSI:
++        case OFPACT_SET_NSH_C1:
++        case OFPACT_SET_NSH_C2:
++        case OFPACT_SET_NSH_C3:
++        case OFPACT_SET_NSH_C4:
+             break;
+ 
+             /* These need not be copied for restoration. */
+@@ -4284,6 +4289,30 @@ do_xlate_actions(const struct ofpact *ofpacts, size_t ofpacts_len,
+             flow->tunnel.tun_id = htonll(ofpact_get_SET_TUNNEL(a)->tun_id);
+             break;
+ 
++        case OFPACT_SET_NSP:
++            flow->tunnel.nsp = ofpact_get_SET_NSP(a)->nsp;
++            break;
++
++        case OFPACT_SET_NSI:
++            flow->tunnel.nsi = ofpact_get_SET_NSI(a)->nsi;
++            break;
++
++        case OFPACT_SET_NSH_C1:
++            flow->tunnel.nshc1 = ofpact_get_SET_NSH_C1(a)->nshc1;
++            break;
++
++        case OFPACT_SET_NSH_C2:
++            flow->tunnel.nshc2 = ofpact_get_SET_NSH_C2(a)->nshc2;
++            break;
++
++        case OFPACT_SET_NSH_C3:
++            flow->tunnel.nshc3 = ofpact_get_SET_NSH_C3(a)->nshc3;
++            break;
++
++        case OFPACT_SET_NSH_C4:
++            flow->tunnel.nshc4 = ofpact_get_SET_NSH_C4(a)->nshc4;
++            break;
++
+         case OFPACT_SET_QUEUE:
+             memset(&wc->masks.skb_priority, 0xff,
+                    sizeof wc->masks.skb_priority);
+diff --git a/ofproto/tunnel.c b/ofproto/tunnel.c
+index b85c2b5..52e28fb 100644
+--- a/ofproto/tunnel.c
++++ b/ofproto/tunnel.c
+@@ -47,13 +47,25 @@ VLOG_DEFINE_THIS_MODULE(tunnel);
+ 
+ struct tnl_match {
+     ovs_be64 in_key;
++    ovs_be32 in_nsp;
++    ovs_be32 in_nshc1;
++    ovs_be32 in_nshc2;
++    ovs_be32 in_nshc3;
++    ovs_be32 in_nshc4;
+     ovs_be32 ip_src;
+     ovs_be32 ip_dst;
+     odp_port_t odp_port;
+     uint32_t pkt_mark;
++    uint8_t in_nsi;
+     bool in_key_flow;
++    bool in_nsp_flow;
++    bool in_nshc1_flow;
++    bool in_nshc2_flow;
++    bool in_nshc3_flow;
++    bool in_nshc4_flow;
+     bool ip_src_flow;
+     bool ip_dst_flow;
++    bool in_nsi_flow;
+ };
+ 
+ struct tnl_port {
+@@ -85,17 +97,41 @@ static struct fat_rwlock rwlock;
+  *       (ip_dst_flow == false) or arrange for the destination IP to be matched
+  *       as tunnel.ip_dst in the OpenFlow flow (ip_dst_flow == true).
+  *
++ *     - in_nsp: A vport may match a specific NSH service path (in_nsp_flow ==
++ *       false) or arrange for the service path to be matched as tunnel.in_nsp
++ *       in the OpenFlow flow (in_nsp_flow == true).
++ *
++ *     - in_nsi: A vport may match a specific NSH service index (in_nsi_flow ==
++ *       false) or arrange for the service index to be matched as tunnel.in_nsi
++ *       in the OpenFlow flow (in_nsi_flow == true).
++ *
++ *     - in_nshc1: A vport may match a specific NSH_C1 (in_nshc1_flow ==
++ *       false) or arrange for the NSH_C1 to be matched as tunnel.in_nshc1
++ *       in the OpenFlow flow (in_nshc1_flow == true).
++ *
++ *     - in_nshc2: A vport may match a specific NSH_C2 (in_nshc1_flow ==
++ *       false) or arrange for the NSH_C2 to be matched as tunnel.in_nshc2
++ *       in the OpenFlow flow (in_nshc2_flow == true).
++ *
++ *     - in_nshc3: A vport may match a specific NSH_C3 (in_nshc1_flow ==
++ *       false) or arrange for the NSH_C3 to be matched as tunnel.in_nshc3
++ *       in the OpenFlow flow (in_nshc3_flow == true).
++ *
++ *     - in_nshc4: A vport may match a specific NSH_C4 (in_nshc1_flow ==
++ *       false) or arrange for the NSH_C4 to be matched as tunnel.in_nshc4
++ *       in the OpenFlow flow (in_nshc4_flow == true).
++ *
+  *     - ip_src: A vport may match a specific IP source address (ip_src_flow ==
+  *       false, ip_src != 0), wildcard all source addresses (ip_src_flow ==
+  *       false, ip_src == 0), or arrange for the IP source address to be
+  *       handled in the OpenFlow flow table (ip_src_flow == true).
+  *
+- * Thus, there are 2 * 2 * 3 == 12 possible ways a vport can match against a
+- * tunnel packet.  We number the possibilities for each field in increasing
+- * order as listed in each bullet above.  We order the 12 overall combinations
+- * in lexicographic order considering in_key first, then ip_dst, then
+- * ip_src. */
+-#define N_MATCH_TYPES (2 * 2 * 3)
++ * Thus, there are 2 * 2 * 2 * 2 * 2 * 2 * 2 * 2 * 3 == 768 possible ways a vport can match
++ * against a tunnel packet.  We number the possibilities for each field in
++ * increasing order as listed in each bullet above.  We order the 768 overall
++ * combinations in lexicographic order considering in_key first, then ip_dst,
++ * then in_nsp, then in_nsi, then ip_src. */
++#define N_MATCH_TYPES (2 * 2 * 2 * 2 * 2 * 2 * 2 * 2 * 3)
+ 
+ /* The three possibilities (see above) for vport ip_src matches. */
+ enum ip_src_type {
+@@ -110,6 +146,10 @@ enum ip_src_type {
+ static struct hmap *tnl_match_maps[N_MATCH_TYPES] OVS_GUARDED_BY(rwlock);
+ static struct hmap **tnl_match_map(const struct tnl_match *);
+ 
++static unsigned int tnl_match_m_to_idx(const struct tnl_match *);
++static void tnl_match_idx_to_m(const struct flow *, unsigned int,
++    struct tnl_match *);
++
+ static struct hmap ofport_map__ = HMAP_INITIALIZER(&ofport_map__);
+ static struct hmap *ofport_map OVS_GUARDED_BY(rwlock) = &ofport_map__;
+ 
+@@ -121,7 +161,10 @@ static struct tnl_port *tnl_find_exact(struct tnl_match *, struct hmap *)
+     OVS_REQ_RDLOCK(rwlock);
+ static struct tnl_port *tnl_find_ofport(const struct ofport_dpif *)
+     OVS_REQ_RDLOCK(rwlock);
+-
++static struct tnl_port *tnl_find_odp_port(odp_port_t odp_port)
++    OVS_REQ_RDLOCK(rwlock);
++static struct tnl_port *tnl_find_exact_odp_port(odp_port_t, struct hmap *)
++    OVS_REQ_RDLOCK(rwlock);
+ static uint32_t tnl_hash(struct tnl_match *);
+ static void tnl_match_fmt(const struct tnl_match *, struct ds *);
+ static char *tnl_port_fmt(const struct tnl_port *) OVS_REQ_RDLOCK(rwlock);
+@@ -161,12 +204,24 @@ tnl_port_add__(const struct ofport_dpif *ofport, const struct netdev *netdev,
+     tnl_port->change_seq = netdev_get_change_seq(tnl_port->netdev);
+ 
+     tnl_port->match.in_key = cfg->in_key;
++    tnl_port->match.in_nsp = cfg->in_nsp;
++    tnl_port->match.in_nsi = cfg->in_nsi;
++    tnl_port->match.in_nshc1 = cfg->in_nshc1;
++    tnl_port->match.in_nshc2 = cfg->in_nshc2;
++    tnl_port->match.in_nshc3 = cfg->in_nshc3;
++    tnl_port->match.in_nshc4 = cfg->in_nshc4;
+     tnl_port->match.ip_src = cfg->ip_src;
+     tnl_port->match.ip_dst = cfg->ip_dst;
+     tnl_port->match.ip_src_flow = cfg->ip_src_flow;
+     tnl_port->match.ip_dst_flow = cfg->ip_dst_flow;
+     tnl_port->match.pkt_mark = cfg->ipsec ? IPSEC_MARK : 0;
+     tnl_port->match.in_key_flow = cfg->in_key_flow;
++    tnl_port->match.in_nsp_flow = cfg->in_nsp_flow;
++    tnl_port->match.in_nsi_flow = cfg->in_nsi_flow;
++    tnl_port->match.in_nshc1_flow = cfg->in_nshc1_flow;
++    tnl_port->match.in_nshc2_flow = cfg->in_nshc2_flow;
++    tnl_port->match.in_nshc3_flow = cfg->in_nshc3_flow;
++    tnl_port->match.in_nshc4_flow = cfg->in_nshc4_flow;
+     tnl_port->match.odp_port = odp_port;
+ 
+     map = tnl_match_map(&tnl_port->match);
+@@ -437,6 +492,28 @@ tnl_port_send(const struct ofport_dpif *ofport, struct flow *flow,
+         flow->tunnel.ip_tos = cfg->tos;
+     }
+ 
++    if (!cfg->out_key_flow) {
++        flow->tunnel.tun_id = cfg->out_key;
++    }
++    if (!cfg->out_nsp_flow) {
++        flow->tunnel.nsp = cfg->out_nsp;
++    }
++    if (!cfg->out_nsi_flow) {
++        flow->tunnel.nsi = cfg->out_nsi;
++    }
++    if (!cfg->out_nshc1_flow) {
++        flow->tunnel.nshc1 = cfg->out_nshc1;
++    }
++    if (!cfg->out_nshc2_flow) {
++        flow->tunnel.nshc2 = cfg->out_nshc2;
++    }
++    if (!cfg->out_nshc3_flow) {
++        flow->tunnel.nshc3 = cfg->out_nshc3;
++    }
++    if (!cfg->out_nshc4_flow) {
++        flow->tunnel.nshc4 = cfg->out_nshc4;
++    }
++
+     /* ECN fields are always inherited. */
+     if (is_ip_any(flow)) {
+         wc->masks.nw_tos |= IP_ECN_MASK;
+@@ -450,6 +527,12 @@ tnl_port_send(const struct ofport_dpif *ofport, struct flow *flow,
+ 
+     flow->tunnel.flags |= (cfg->dont_fragment ? FLOW_TNL_F_DONT_FRAGMENT : 0)
+         | (cfg->csum ? FLOW_TNL_F_CSUM : 0)
++        | (cfg->out_nsp_present ? FLOW_TNL_F_NSP : 0)
++        | (cfg->out_nsi_present ? FLOW_TNL_F_NSI : 0)
++        | (cfg->out_nshc1_present ? FLOW_TNL_F_NSH_C1 : 0)
++        | (cfg->out_nshc2_present ? FLOW_TNL_F_NSH_C2 : 0)
++        | (cfg->out_nshc3_present ? FLOW_TNL_F_NSH_C3 : 0)
++        | (cfg->out_nshc4_present ? FLOW_TNL_F_NSH_C4 : 0)
+         | (cfg->out_key_present ? FLOW_TNL_F_KEY : 0);
+ 
+     if (pre_flow_str) {
+@@ -512,57 +595,122 @@ tnl_find_exact(struct tnl_match *match, struct hmap *map)
+ static struct tnl_port *
+ tnl_find(const struct flow *flow) OVS_REQ_RDLOCK(rwlock)
+ {
+-    enum ip_src_type ip_src;
+-    int in_key_flow;
+-    int ip_dst_flow;
+-    int i;
+-
+-    i = 0;
+-    for (in_key_flow = 0; in_key_flow < 2; in_key_flow++) {
+-        for (ip_dst_flow = 0; ip_dst_flow < 2; ip_dst_flow++) {
+-            for (ip_src = 0; ip_src < 3; ip_src++) {
+-                struct hmap *map = tnl_match_maps[i];
+-
+-                if (map) {
+-                    struct tnl_port *tnl_port;
+-                    struct tnl_match match;
+-
+-                    memset(&match, 0, sizeof match);
+-
+-                    /* The apparent mix-up of 'ip_dst' and 'ip_src' below is
+-                     * correct, because "struct tnl_match" is expressed in
+-                     * terms of packets being sent out, but we are using it
+-                     * here as a description of how to treat received
+-                     * packets. */
+-                    match.in_key = in_key_flow ? 0 : flow->tunnel.tun_id;
+-                    match.ip_src = (ip_src == IP_SRC_CFG
+-                                    ? flow->tunnel.ip_dst
+-                                    : 0);
+-                    match.ip_dst = ip_dst_flow ? 0 : flow->tunnel.ip_src;
+-                    match.odp_port = flow->in_port.odp_port;
+-                    match.pkt_mark = flow->pkt_mark;
+-                    match.in_key_flow = in_key_flow;
+-                    match.ip_dst_flow = ip_dst_flow;
+-                    match.ip_src_flow = ip_src == IP_SRC_FLOW;
+-
+-                    tnl_port = tnl_find_exact(&match, map);
+-                    if (tnl_port) {
+-                        return tnl_port;
+-                    }
+-                }
+-
+-                i++;
++   int i;
++
++    for (i = 0; i < N_MATCH_TYPES; i++) {
++         struct hmap *map = tnl_match_maps[i];
++
++         if (map) {
++            struct tnl_port *tnl_port;
++            struct tnl_match match;
++
++            memset(&match, 0, sizeof match);
++
++            tnl_match_idx_to_m(flow, i, &match);
++            tnl_port = tnl_find_exact(&match, map);
++            if (tnl_port) {
++                return tnl_port;
+             }
+         }
+-    }
++   }
+ 
+     return NULL;
+ }
+ 
+-/* Returns a pointer to the 'tnl_match_maps' element corresponding to 'm''s
+- * matching criteria. */
+-static struct hmap **
+-tnl_match_map(const struct tnl_match *m)
++/* Coverts a index to corresponding matching criteria 'm'. */
++static void
++tnl_match_idx_to_m(const struct flow *flow, unsigned int idx,
++                   struct tnl_match *m)
++{
++    enum ip_src_type ip_src;
++    bool in_key_flow;
++    bool ip_dst_flow;
++    bool in_nsp_flow;
++    bool in_nsi_flow;
++    bool in_nshc1_flow;
++    bool in_nshc2_flow;
++    bool in_nshc3_flow;
++    bool in_nshc4_flow;
++
++    if (!m)
++        return;
++
++    in_key_flow = (idx < (N_MATCH_TYPES / 2)) ? false : true;
++
++    if (idx >= (N_MATCH_TYPES / 2))
++        idx -= (N_MATCH_TYPES / 2);
++
++    ip_dst_flow = (idx < (N_MATCH_TYPES / (2 * 2))) ? false : true;
++
++    if (idx >= (N_MATCH_TYPES / (2 * 2)))
++        idx -= (N_MATCH_TYPES / (2 * 2));
++
++    in_nsp_flow = (idx < (N_MATCH_TYPES / (2 * 2 * 2))) ? false : true;
++
++    if (idx >= (N_MATCH_TYPES / (2 * 2 * 2)))
++        idx -= (N_MATCH_TYPES / (2 * 2 * 2));
++
++    in_nsi_flow = (idx < (N_MATCH_TYPES / (2 * 2 * 2 * 2))) ? false : true;
++
++    if (idx >= (N_MATCH_TYPES / (2 * 2 * 2 * 2)))
++        idx -= (N_MATCH_TYPES / (2 * 2 * 2 * 2));
++
++    in_nshc1_flow = (idx < (N_MATCH_TYPES / (2 * 2 * 2 * 2 * 2))) ? false : true;
++
++    if (idx >= (N_MATCH_TYPES / (2 * 2 * 2 * 2 * 2)))
++        idx -= (N_MATCH_TYPES / (2 * 2 * 2 * 2 * 2));
++
++    in_nshc2_flow = (idx < (N_MATCH_TYPES / (2 * 2 * 2 * 2 * 2 * 2))) ? false : true;
++
++    if (idx >= (N_MATCH_TYPES / (2 * 2 * 2 * 2 * 2 * 2)))
++        idx -= (N_MATCH_TYPES / (2 * 2 * 2 * 2 * 2 * 2));
++
++    in_nshc3_flow = (idx < (N_MATCH_TYPES / (2 * 2 * 2 * 2 * 2 * 2 * 2))) ? false : true;
++
++    if (idx >= (N_MATCH_TYPES / (2 * 2 * 2 * 2 * 2 * 2 * 2)))
++        idx -= (N_MATCH_TYPES / (2 * 2 * 2 * 2 * 2 * 2 * 2));
++
++    in_nshc4_flow = (idx < (N_MATCH_TYPES / (2 * 2 * 2 * 2 * 2 * 2 * 2 * 2))) ? false : true;
++
++    if (idx >= (N_MATCH_TYPES / (2 * 2 * 2 * 2 * 2 * 2 * 2 * 2)))
++        idx -= (N_MATCH_TYPES / (2 * 2 * 2 * 2 * 2 * 2 * 2 * 2));
++
++    ip_src = idx;
++
++    /* The apparent mix-up of 'ip_dst' and 'ip_src' below is
++     * correct, because "struct tnl_match" is expressed in
++     * terms of packets being sent out, but we are using it
++     * here as a description of how to treat received
++     * packets. */
++    m->in_key = in_key_flow ? 0 : flow->tunnel.tun_id;
++    m->ip_src = (ip_src == IP_SRC_CFG
++                    ? flow->tunnel.ip_dst
++                    : 0);
++    m->in_nsp = in_nsp_flow ? 0 : flow->tunnel.nsp;
++    m->in_nsi = in_nsi_flow ? 1 : flow->tunnel.nsi;
++    m->in_nshc1 = in_nshc1_flow ? 0 : flow->tunnel.nshc1;
++    m->in_nshc2 = in_nshc2_flow ? 0 : flow->tunnel.nshc2;
++    m->in_nshc3 = in_nshc3_flow ? 0 : flow->tunnel.nshc3;
++    m->in_nshc4 = in_nshc4_flow ? 0 : flow->tunnel.nshc4;
++    m->ip_dst = ip_dst_flow ? 0 : flow->tunnel.ip_src;
++    m->odp_port = flow->in_port.odp_port;
++    m->pkt_mark = flow->pkt_mark;
++    m->in_key_flow = in_key_flow;
++    m->ip_dst_flow = ip_dst_flow;
++    m->in_nsp_flow = in_nsp_flow;
++    m->in_nsi_flow = in_nsi_flow;
++    m->in_nshc1_flow = in_nshc1_flow;
++    m->in_nshc2_flow = in_nshc2_flow;
++    m->in_nshc3_flow = in_nshc3_flow;
++    m->in_nshc4_flow = in_nshc4_flow;
++
++    m->ip_src_flow = ip_src == IP_SRC_FLOW;
++
++}
++
++/* Returns a index corresponding to 'm''s matching criteria. */
++static unsigned int
++tnl_match_m_to_idx(const struct tnl_match *m)
+ {
+     enum ip_src_type ip_src;
+ 
+@@ -570,7 +718,23 @@ tnl_match_map(const struct tnl_match *m)
+               : m->ip_src ? IP_SRC_CFG
+               : IP_SRC_ANY);
+ 
+-    return &tnl_match_maps[6 * m->in_key_flow + 3 * m->ip_dst_flow + ip_src];
++    return (m->in_key_flow * (N_MATCH_TYPES / 2) +
++            m->ip_dst_flow * (N_MATCH_TYPES / (2 * 2)) +
++            m->in_nsp_flow * (N_MATCH_TYPES / (2 * 2 * 2)) +
++            m->in_nsi_flow * (N_MATCH_TYPES / (2 * 2 * 2 * 2)) +
++            m->in_nshc1_flow * (N_MATCH_TYPES / (2 * 2 * 2 * 2 * 2)) +
++            m->in_nshc2_flow * (N_MATCH_TYPES / (2 * 2 * 2 * 2 * 2 * 2)) +
++            m->in_nshc3_flow * (N_MATCH_TYPES / (2 * 2 * 2 * 2 * 2 * 2 * 2)) +
++            m->in_nshc4_flow * (N_MATCH_TYPES / (2 * 2 * 2 * 2 * 2 * 2 * 2 * 2)) +
++            ip_src);
++}
++
++/* Returns a pointer to the 'tnl_match_maps' element corresponding to 'm''s
++ * matching criteria. */
++static struct hmap **
++tnl_match_map(const struct tnl_match *m)
++{
++    return &tnl_match_maps[tnl_match_m_to_idx(m)];
+ }
+ 
+ static void
+@@ -592,6 +756,37 @@ tnl_match_fmt(const struct tnl_match *match, struct ds *ds)
+         ds_put_format(ds, ", key=%#"PRIx64, ntohll(match->in_key));
+     }
+ 
++    if (match->in_nsp_flow) {
++        ds_put_cstr(ds, ", nsp=flow");
++    } else {
++        ds_put_format(ds, ", nsp=%#"PRIx32, ntohl(match->in_nsp));
++    }
++    if (match->in_nsi_flow) {
++        ds_put_cstr(ds, ", nsi=flow");
++    } else {
++        ds_put_format(ds, ", nsi=%"PRIu8, match->in_nsi);
++    }
++    if (match->in_nshc1_flow) {
++        ds_put_cstr(ds, ", nshc1=flow");
++    } else {
++        ds_put_format(ds, ", nshc1=%#"PRIx32, ntohl(match->in_nshc1));
++    }
++    if (match->in_nshc2_flow) {
++        ds_put_cstr(ds, ", nshc2=flow");
++    } else {
++        ds_put_format(ds, ", nshc2=%#"PRIx32, ntohl(match->in_nshc2));
++    }
++    if (match->in_nshc3_flow) {
++        ds_put_cstr(ds, ", nshc3=flow");
++    } else {
++        ds_put_format(ds, ", nshc3=%#"PRIx32, ntohl(match->in_nshc3));
++    }
++    if (match->in_nshc4_flow) {
++        ds_put_cstr(ds, ", nshc4=flow");
++    } else {
++        ds_put_format(ds, ", nshc4=%#"PRIx32, ntohl(match->in_nshc4));
++    }
++
+     ds_put_format(ds, ", dp port=%"PRIu32, match->odp_port);
+     ds_put_format(ds, ", pkt mark=%"PRIu32, match->pkt_mark);
+ }
+@@ -635,6 +830,79 @@ tnl_port_fmt(const struct tnl_port *tnl_port) OVS_REQ_RDLOCK(rwlock)
+         }
+     }
+ 
++    if (cfg->out_nsp != cfg->in_nsp ||
++        cfg->out_nsp_present != cfg->in_nsp_present ||
++        cfg->out_nsp_flow != cfg->in_nsp_flow) {
++        ds_put_cstr(&ds, ", out_nsp=");
++        if (!cfg->out_nsp_present) {
++            ds_put_cstr(&ds, "none");
++        } else if (cfg->out_nsp_flow) {
++            ds_put_cstr(&ds, "flow");
++        } else {
++            ds_put_format(&ds, "%#"PRIx32, ntohl(cfg->out_nsp));
++        }
++    }
++    if (cfg->out_nsi != cfg->in_nsi ||
++        cfg->out_nsi_present != cfg->in_nsi_present ||
++        cfg->out_nsi_flow != cfg->in_nsi_flow) {
++        ds_put_cstr(&ds, ", out_nsi=");
++        if (!cfg->out_nsi_present) {
++            ds_put_cstr(&ds, "none");
++        } else if (cfg->out_nsi_flow) {
++            ds_put_cstr(&ds, "flow");
++        } else {
++            ds_put_format(&ds, "%"PRIu8, cfg->out_nsi);
++        }
++    }
++    if (cfg->out_nshc1 != cfg->in_nshc1 ||
++        cfg->out_nshc1_present != cfg->in_nshc1_present ||
++        cfg->out_nshc1_flow != cfg->in_nshc1_flow) {
++        ds_put_cstr(&ds, ", out_nshc1=");
++        if (!cfg->out_nshc1_present) {
++            ds_put_cstr(&ds, "none");
++        } else if (cfg->out_nshc1_flow) {
++            ds_put_cstr(&ds, "flow");
++        } else {
++            ds_put_format(&ds, "%#"PRIx32, ntohl(cfg->out_nshc1));
++        }
++    }
++    if (cfg->out_nshc2 != cfg->in_nshc2 ||
++        cfg->out_nshc2_present != cfg->in_nshc2_present ||
++        cfg->out_nshc2_flow != cfg->in_nshc2_flow) {
++        ds_put_cstr(&ds, ", out_nshc2=");
++        if (!cfg->out_nshc2_present) {
++            ds_put_cstr(&ds, "none");
++        } else if (cfg->out_nshc2_flow) {
++            ds_put_cstr(&ds, "flow");
++        } else {
++            ds_put_format(&ds, "%#"PRIx32, ntohl(cfg->out_nshc2));
++        }
++    }
++    if (cfg->out_nshc3 != cfg->in_nshc3 ||
++        cfg->out_nshc3_present != cfg->in_nshc3_present ||
++        cfg->out_nshc3_flow != cfg->in_nshc3_flow) {
++        ds_put_cstr(&ds, ", out_nshc3=");
++        if (!cfg->out_nshc3_present) {
++            ds_put_cstr(&ds, "none");
++        } else if (cfg->out_nshc3_flow) {
++            ds_put_cstr(&ds, "flow");
++        } else {
++            ds_put_format(&ds, "%#"PRIx32, ntohl(cfg->out_nshc3));
++        }
++    }
++    if (cfg->out_nshc4 != cfg->in_nshc4 ||
++        cfg->out_nshc4_present != cfg->in_nshc4_present ||
++        cfg->out_nshc4_flow != cfg->in_nshc4_flow) {
++        ds_put_cstr(&ds, ", out_nshc4=");
++        if (!cfg->out_nshc4_present) {
++            ds_put_cstr(&ds, "none");
++        } else if (cfg->out_nshc4_flow) {
++            ds_put_cstr(&ds, "flow");
++        } else {
++            ds_put_format(&ds, "%#"PRIx32, ntohl(cfg->out_nshc4));
++        }
++    }
++
+     if (cfg->ttl_inherit) {
+         ds_put_cstr(&ds, ", ttl=inherit");
+     } else {
+diff --git a/ofproto/tunnel.h b/ofproto/tunnel.h
+index 3bb76c5..3e704fb 100644
+--- a/ofproto/tunnel.h
++++ b/ofproto/tunnel.h
+@@ -55,5 +55,4 @@ int tnl_port_build_header(const struct ofport_dpif *ofport,
+                           const struct eth_addr dmac,
+                           const struct eth_addr smac,
+                           ovs_be32 ip_src, struct ovs_action_push_tnl *data);
+-
+ #endif /* tunnel.h */
+diff --git a/tests/ofproto.at b/tests/ofproto.at
+index c012a34..fc19b10 100644
+--- a/tests/ofproto.at
++++ b/tests/ofproto.at
+@@ -1531,7 +1531,7 @@ head_table () {
+         actions: output group set_field strip_vlan push_vlan mod_nw_ttl dec_ttl set_mpls_ttl dec_mpls_ttl push_mpls pop_mpls set_queue
+         supported on Set-Field: tun_id tun_src tun_dst tun_flags tun_gbp_id tun_gbp_flags tun_metadata0 dnl
+ tun_metadata1 tun_metadata2 tun_metadata3 tun_metadata4 tun_metadata5 tun_metadata6 tun_metadata7 tun_metadata8 tun_metadata9 tun_metadata10 tun_metadata11 tun_metadata12 tun_metadata13 tun_metadata14 tun_metadata15 tun_metadata16 tun_metadata17 tun_metadata18 tun_metadata19 tun_metadata20 tun_metadata21 tun_metadata22 tun_metadata23 tun_metadata24 tun_metadata25 tun_metadata26 tun_metadata27 tun_metadata28 tun_metadata29 tun_metadata30 tun_metadata31 tun_metadata32 tun_metadata33 tun_metadata34 tun_metadata35 tun_metadata36 tun_metadata37 tun_metadata38 tun_metadata39 tun_metadata40 tun_metadata41 tun_metadata42 tun_metadata43 tun_metadata44 tun_metadata45 tun_metadata46 tun_metadata47 tun_metadata48 tun_metadata49 tun_metadata50 tun_metadata51 tun_metadata52 tun_metadata53 tun_metadata54 tun_metadata55 tun_metadata56 tun_metadata57 tun_metadata58 tun_metadata59 tun_metadata60 tun_metadata61 tun_metadata62 tun_metadata63 dnl
+-metadata in_port in_port_oxm pkt_mark reg0 reg1 reg2 reg3 reg4 reg5 reg6 reg7 xreg0 xreg1 xreg2 xreg3 eth_src eth_dst vlan_tci vlan_vid vlan_pcp mpls_label mpls_tc ip_src ip_dst ipv6_src ipv6_dst ipv6_label nw_tos ip_dscp nw_ecn nw_ttl arp_op arp_spa arp_tpa arp_sha arp_tha tcp_src tcp_dst udp_src udp_dst sctp_src sctp_dst nd_target nd_sll nd_tll
++metadata in_port in_port_oxm pkt_mark reg0 reg1 reg2 reg3 reg4 reg5 reg6 reg7 xreg0 xreg1 xreg2 xreg3 eth_src eth_dst vlan_tci vlan_vid vlan_pcp mpls_label mpls_tc ip_src ip_dst ipv6_src ipv6_dst ipv6_label nw_tos ip_dscp nw_ecn nw_ttl arp_op arp_spa arp_tpa arp_sha arp_tha tcp_src tcp_dst udp_src udp_dst sctp_src sctp_dst nd_target nd_sll nd_tll nsp nsi nshc1 nshc2 nshc3 nshc4
+     matching:
+       dp_hash: arbitrary mask
+       recirc_id: exact match or wildcard
+@@ -1662,6 +1662,12 @@ metadata in_port in_port_oxm pkt_mark reg0 reg1 reg2 reg3 reg4 reg5 reg6 reg7 xr
+       nd_target: arbitrary mask
+       nd_sll: arbitrary mask
+       nd_tll: arbitrary mask
++      nsp: arbitrary mask
++      nsi: arbitrary mask
++      nshc1: arbitrary mask
++      nshc2: arbitrary mask
++      nshc3: arbitrary mask
++      nshc4: arbitrary mask
+ 
+ ' $1
+ }
+@@ -4068,7 +4074,7 @@ vconn|DBG|unix: negotiated OpenFlow version 0x01 (we support version 0x06 and ea
+ vconn|DBG|unix: received: NXT_SET_FLOW_FORMAT: format=nxm
+ vconn|DBG|unix: received: OFPT_BARRIER_REQUEST:
+ vconn|DBG|unix: sent (Success): OFPT_BARRIER_REPLY:
+-vconn|DBG|unix: received: NXST_FLOW request:
++vconn|DBG|unix: received: NXST_FLOW request:
+ vconn|DBG|unix: sent (Success): NXST_FLOW reply:
+  idle_timeout=60, in_port=2,dl_src=00:77:88:99:aa:bb actions=output:8
+  in_port=2,dl_src=00:66:77:88:99:aa actions=drop
+diff --git a/tests/tunnel.at b/tests/tunnel.at
+index f277f27..f43a07d 100644
+--- a/tests/tunnel.at
++++ b/tests/tunnel.at
+@@ -412,6 +412,121 @@ AT_CHECK([tail -1 stdout], [0],
+ OVS_VSWITCHD_STOP
+ AT_CLEANUP
+ 
++AT_SETUP([tunnel - VXLAN-GPE NSH kernel space])
++OVS_VSWITCHD_START([add-port br0 p1 -- set Interface p1 type=vxlan \
++                    options:remote_ip=1.1.1.1 ofport_request=1 options:dst_port=4790])
++
++AT_CHECK([ovs-appctl dpif/show | tail -n +3], [0], [dnl
++		br0 65534/100: (dummy)
++		p1 1/4790: (vxlan: dst_port=4790, remote_ip=1.1.1.1)
++])
++OVS_VSWITCHD_STOP
++AT_CLEANUP
++
++AT_SETUP([tunnel VXLAN-GPE NSH - encap - nsh/nsi/nshc kernel space])
++OVS_VSWITCHD_START([dnl
++    add-port br0 p1 -- set Interface p1 type=vxlan options:key=flow \
++        options:remote_ip=1.1.1.1 options:dst_port=4790 ofport_request=1 \
++    -- add-port br0 p2 -- set Interface p2 type=vxlan options:key=flow \
++        options:remote_ip=flow options:dst_port=4790 ofport_request=2 \
++    -- add-port br0 p3 -- set Interface p3 type=vxlan options:key=flow \
++        options:remote_ip=2.2.2.2 options:dst_port=4790 options:nsp=111 options:nsi=11 options:nshc1=11 options:nshc2=12 options:nshc3=13 options:nshc4=14 ofport_request=3 \
++    -- add-port br0 p4 -- set Interface p4 type=vxlan options:key=flow \
++        options:remote_ip=3.3.3.3 options:dst_port=4790 options:nsp=222 options:nsi=22 options:nshc1=flow options:nshc2=flow options:nshc3=flow options:nshc4=flow ofport_request=4 \
++    -- add-port br0 p5 -- set Interface p5 type=vxlan options:key=flow \
++        options:remote_ip=4.4.4.4 options:dst_port=4790 options:nsp=flow options:nsi=flow options:nshc1=flow options:nshc2=flow options:nshc3=flow options:nshc4=flow ofport_request=5 \
++    -- add-port br0 p6 -- set Interface p6 type=vxlan options:key=flow \
++        options:remote_ip=flow options:dst_port=4790 options:nsp=flow options:nsi=flow options:nshc1=flow options:nshc2=flow options:nshc3=flow options:nshc4=flow ofport_request=6])
++
++OVS_VSWITCHD_DISABLE_TUNNEL_PUSH_POP
++ADD_OF_PORTS([br0], [90])
++AT_DATA([flows.txt], [dnl
++in_port=90 actions=resubmit:1,resubmit:2,resubmit:3,resubmit:4,resubmit:5
++in_port=1 actions=set_field:42->tun_id,output:1
++in_port=2 actions=set_field:3.3.3.3->tun_dst,output:2
++in_port=3 actions=output:3
++in_port=4 actions=set_nshc1:22,set_nshc2:23,set_nshc3:24,set_nshc4:25,output:4
++in_port=5 actions=set_nsp:333,set_nsi:33,set_nshc1:33,set_nshc2:34,set_nshc3:35,set_nshc4:36,output:5
++in_port=6 actions=set_field:5.5.5.5->tun_dst,set_nsp:444,set_nsi:44,set_nshc1:44,set_nshc2:45,set_nshc3:46,set_nshc4:47,output:6
++])
++AT_CHECK([ovs-ofctl add-flows br0 flows.txt])
++AT_CHECK([ovs-appctl ofproto/trace ovs-dummy 'in_port(90),eth(src=50:54:00:00:00:05,dst=50:54:00:00:00:07),eth_type(0x0800),ipv4(src=192.168.0.1,dst=192.168.0.2,proto=1,tos=0,ttl=128,frag=no),icmp(type=8,code=0)'], [0], [stdout])
++AT_CHECK([tail -1 stdout], [0],
++  [Datapath actions: set(tunnel(tun_id=0x2a,dst=1.1.1.1,ttl=64,nsi=1,flags(df|key|nsi))),4790,set(tunnel(tun_id=0x2a,dst=3.3.3.3,ttl=64,nsi=1,flags(df|key|nsi))),4790,set(tunnel(tun_id=0x2a,dst=2.2.2.2,ttl=64,nsp=6f,nsi=11,nshc1=b,nshc2=c,nshc3=d,nshc4=e,flags(df|key|nsp|nsi|nshc1|nshc2|nshc3|nshc4))),4790,set(tunnel(tun_id=0x2a,dst=3.3.3.3,ttl=64,nsp=de,nsi=22,nshc1=16,nshc2=17,nshc3=18,nshc4=19,flags(df|key|nsp|nsi|nshc1|nshc2|nshc3|nshc4))),4790,set(tunnel(tun_id=0x2a,dst=4.4.4.4,ttl=64,nsp=14d,nsi=33,nshc1=21,nshc2=22,nshc3=23,nshc4=24,flags(df|key|nsp|nsi|nshc1|nshc2|nshc3|nshc4))),4790
++])
++OVS_VSWITCHD_STOP
++AT_CLEANUP
++
++AT_SETUP([tunnel - VXLAN-GPE NSH decap - decap-encap - remote_ip nsp nsi nshc* kernel space])
++OVS_VSWITCHD_START([add-port br0 p1 -- set Interface p1 type=vxlan options:key=flow \
++        options:remote_ip=1.1.1.1 options:dst_port=4790 ofport_request=1 \
++    -- add-port br0 p2 -- set Interface p2 type=vxlan options:key=flow \
++        options:remote_ip=2.2.2.2 options:dst_port=4790 options:nsp=111 options:nsi=11 options:nshc1=11 options:nshc2=12 options:nshc3=13 options:nshc4=14 ofport_request=2 \
++    -- add-port br0 p3 -- set Interface p3 type=vxlan options:key=flow \
++        options:remote_ip=3.3.3.3 options:dst_port=4790 options:nsp=flow options:nsi=flow options:nshc1=flow options:nshc2=flow options:nshc3=flow options:nshc4=flow ofport_request=3 \
++    -- add-port br0 p4 -- set Interface p4 type=vxlan options:key=flow \
++        options:remote_ip=4.4.4.4 options:dst_port=4790 options:in_nsp=221 options:out_nsp=flow options:in_nsi=3 options:out_nsi=flow options:nshc1=flow options:nshc2=flow options:nshc3=flow options:nshc4=flow ofport_request=4 \
++    -- add-port br0 p5 -- set Interface p5 type=vxlan options:key=flow \
++        options:remote_ip=flow options:dst_port=4790 options:nsp=flow options:nsi=flow options:nshc1=flow options:nshc2=flow options:nshc3=flow options:nshc4=flow ofport_request=5])
++AT_DATA([flows.txt], [dnl
++priority=16,in_port=1,actions=IN_PORT
++priority=16,in_port=2,actions=IN_PORT
++priority=16,in_port=3,actions=set_nsp:111,set_nsi=11,set_nshc1:22,set_nshc2:23,set_nshc3:24,set_nshc4:25,IN_PORT
++priority=16,in_port=4,actions=set_nsp:222,set_nsi=22,set_nshc1:32,set_nshc2:33,set_nshc3:34,set_nshc4:35,IN_PORT
++priority=16,in_port=5,nsp=311,nsi=31,actions=set_nsp:322,set_nsi=33,set_nshc1:42,set_nshc2:43,set_nshc3:44,set_nshc4:45,set_field:6.6.6.6->tun_dst,IN_PORT
++])
++OVS_VSWITCHD_DISABLE_TUNNEL_PUSH_POP
++
++AT_CHECK([ovs-ofctl add-flows br0 flows.txt])
++
++AT_CHECK([ovs-appctl dpif/show | tail -n +3], [0], [dnl
++		br0 65534/100: (dummy)
++		p1 1/4790: (vxlan: dst_port=4790, key=flow, remote_ip=1.1.1.1)
++		p2 2/4790: (vxlan: dst_port=4790, key=flow, nshc1=0xb, nshc2=0xc, nshc3=0xd, nshc4=0xe, nsi=11, nsp=0x6f, remote_ip=2.2.2.2)
++		p3 3/4790: (vxlan: dst_port=4790, key=flow, nshc1=flow, nshc2=flow, nshc3=flow, nshc4=flow, nsi=flow, nsp=flow, remote_ip=3.3.3.3)
++		p4 4/4790: (vxlan: dst_port=4790, in_nsi=3, in_nsp=0xdd, key=flow, nshc1=flow, nshc2=flow, nshc3=flow, nshc4=flow, out_nsi=flow, out_nsp=flow, remote_ip=4.4.4.4)
++		p5 5/4790: (vxlan: dst_port=4790, key=flow, nshc1=flow, nshc2=flow, nshc3=flow, nshc4=flow, nsi=flow, nsp=flow, remote_ip=flow)
++])
++
++dnl remote_ip p1
++AT_CHECK([ovs-appctl ofproto/trace ovs-dummy 'tunnel(src=1.1.1.1,dst=1.2.3.4,nsi=1,ttl=64,flags()),in_port(4790),eth(src=50:54:00:00:00:05,dst=50:54:00:00:00:07),eth_type(0x0800),ipv4(src=192.168.0.1,dst=192.168.0.2,proto=6,tos=0,ttl=64,frag=no),tcp(src=8,dst=9)'], [0], [stdout])
++AT_CHECK([tail -1 stdout], [0],
++  [Datapath actions: set(tunnel(tun_id=0x0,dst=1.1.1.1,ttl=64,nsi=1,flags(df|key|nsi))),4790
++])
++
++dnl remote_ip nsp nsi nshc*  p2
++AT_CHECK([ovs-appctl ofproto/trace ovs-dummy 'tunnel(src=2.2.2.2,dst=1.2.3.4,nsi=11,nsp=111,nshc1=11,nshc2=12,nshc3=13,nshc4=14,ttl=64,flags()),in_port(4790),eth(src=50:54:00:00:00:05,dst=50:54:00:00:00:07),eth_type(0x0800),ipv4(src=192.168.0.1,dst=192.168.0.2,proto=6,tos=0,ttl=64,frag=no),tcp(src=8,dst=9)'], [0], [stdout])
++AT_CHECK([tail -1 stdout], [0],
++  [Datapath actions: set(tunnel(tun_id=0x0,dst=2.2.2.2,ttl=64,nsp=6f,nsi=11,nshc1=b,nshc2=c,nshc3=d,nshc4=e,flags(df|key|nsp|nsi|nshc1|nshc2|nshc3|nshc4))),4790
++])
++
++dnl remote_ip nsp=flow nsi=flow nshc*=flow p3
++AT_CHECK([ovs-appctl ofproto/trace ovs-dummy 'tunnel(src=3.3.3.3,dst=1.2.3.4,ttl=64,flags()),in_port(4790),eth(src=50:54:00:00:00:05,dst=50:54:00:00:00:07),eth_type(0x0800),ipv4(src=192.168.0.1,dst=192.168.0.2,proto=6,tos=0,ttl=64,frag=no),tcp(src=8,dst=9)'], [0], [stdout])
++AT_CHECK([tail -1 stdout], [0],
++  [Datapath actions: set(tunnel(tun_id=0x0,dst=3.3.3.3,ttl=64,nsp=6f,nsi=11,nshc1=16,nshc2=17,nshc3=18,nshc4=19,flags(df|key|nsp|nsi|nshc1|nshc2|nshc3|nshc4))),4790
++])
++
++dnl remote_ip nshc*=flow p4
++AT_CHECK([ovs-appctl ofproto/trace ovs-dummy 'tunnel(src=4.4.4.4,dst=1.2.3.4,nsp=221,nsi=3,ttl=64,flags()),in_port(4790),eth(src=50:54:00:00:00:05,dst=50:54:00:00:00:07),eth_type(0x0800),ipv4(src=192.168.0.1,dst=192.168.0.2,proto=6,tos=0,ttl=64,frag=no),tcp(src=8,dst=9)'], [0], [stdout])
++AT_CHECK([tail -1 stdout], [0],
++  [Datapath actions: set(tunnel(tun_id=0x0,dst=4.4.4.4,ttl=64,nsp=de,nsi=22,nshc1=20,nshc2=21,nshc3=22,nshc4=23,flags(df|key|nsp|nsi|nshc1|nshc2|nshc3|nshc4))),4790
++])
++
++dnl remote_ip  nshc*=flow p4  not matched
++AT_CHECK([ovs-appctl ofproto/trace ovs-dummy 'tunnel(src=4.4.4.4,dst=1.2.3.4,nsp=223,nsi=3,ttl=64,flags()),in_port(4790),eth(src=50:54:00:00:00:05,dst=50:54:00:00:00:07),eth_type(0x0800),ipv4(src=192.168.0.1,dst=192.168.0.2,proto=6,tos=0,ttl=64,frag=no),tcp(src=8,dst=9)'], [0], [stdout])
++AT_CHECK([tail -1 stdout], [0],
++  [Datapath actions: drop
++])
++
++dnl remote_ip remote_ip=flow nsp=flow nsi=flow nshc*=flow p5
++AT_CHECK([ovs-appctl ofproto/trace ovs-dummy 'tunnel(src=5.5.5.5,dst=1.2.3.4,nsp=311,nsi=31,ttl=64,flags()),in_port(4790),eth(src=50:54:00:00:00:05,dst=50:54:00:00:00:07),eth_type(0x0800),ipv4(src=192.168.0.1,dst=192.168.0.2,proto=6,tos=0,ttl=64,frag=no),tcp(src=8,dst=9)'], [0], [stdout])
++AT_CHECK([tail -1 stdout], [0],
++  [Datapath actions: set(tunnel(tun_id=0x0,dst=6.6.6.6,ttl=64,nsp=142,nsi=33,nshc1=2a,nshc2=2b,nshc3=2c,nshc4=2d,flags(df|key|nsp|nsi|nshc1|nshc2|nshc3|nshc4))),4790
++])
++
++OVS_VSWITCHD_STOP(["/receive tunnel port not found/d"])
++AT_CLEANUP
++
+ AT_SETUP([tunnel - Geneve metadata])
+ OVS_VSWITCHD_START([add-port br0 p1 -- set Interface p1 type=geneve \
+                     options:remote_ip=1.1.1.1 ofport_request=1 \
+--
+1.9.3
+ 
