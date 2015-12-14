@@ -4,6 +4,11 @@ attributes:
       weight: 20
       value: false
       label: "Use dpdk"
+    dpdk-bind-nic:
+      value: 'eth2'
+      label: 'Network device'
+      weight: 40
+      type: "text"
     use_dppd:
       type: "checkbox"
       weight: 20

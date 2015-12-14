@@ -1,0 +1,91 @@
+#! /bin/bash
+#
+# Copyright (C) 2015 Intel, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at:
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+set -eux
+echo "sourcing config"
+source /etc/default/dpdk.conf
+
+RTE_SDK=${RTE_SDK:-/usr/share/dpdk/dpdk-2.1.0}
+RTE_TARGET=${RTE_TARGET:-x86_64-native-linuxapp-gcc}
+DPDK_DIR=$RTE_SDK
+
+load_igb_uio_module(){
+    if [ ! -f $RTE_SDK/$RTE_TARGET/kmod/igb_uio.ko ];then
+        echo "## ERROR: Target does not have the DPDK UIO Kernel Module."
+        echo "       To fix, please try to rebuild target."
+        return
+    fi
+    sudo modprobe uio
+    echo "Loading DPDK UIO module"
+    sudo insmod $RTE_SDK/$RTE_TARGET/kmod/igb_uio.ko
+}
+
+bind_nic_2_driver() {
+    list=("$@")
+    # Bind nics to DPDK_INTERFACE_DRIVER.
+    for pair in "${list[@]}"; do
+        addr=`echo $pair | cut -f 1 -d "#"`
+        nic=`echo $pair | cut -f 2 -d "#"`
+        echo sudo RTE_SDK=${DPDK_DIR} RTE_TARGET=build ${DPDK_DIR}/tools/dpdk_nic_bind.py -b $DPDK_INTERFACE_DRIVER $addr
+        sudo RTE_SDK=${DPDK_DIR} RTE_TARGET=build ${DPDK_DIR}/tools/dpdk_nic_bind.py -b $DPDK_INTERFACE_DRIVER $addr
+    done
+}
+
+bind_nics(){
+    # Extract nic name, bind it with DPDK_INTERFACE_DRIVER driver
+    PCI_MAPPINGS=${DPDK_NIC_MAPPINGS//,/ }
+    PCI_ARRAY=( $PCI_MAPPINGS )
+    bind_nic_2_driver "${PCI_ARRAY[@]}"
+}
+
+alloc_hugepages() {
+    HUGEPAGE_SIZE=$(grep Hugepagesize /proc/meminfo | awk '{ print $2 }')
+    sudo mkdir -p $DPDK_HUGEPAGE_MOUNT
+
+
+    #allocate hugepages
+    if [ $DPDK_ALLOCATE_HUGEPAGES == 'True' ]; then
+        for d in /sys/devices/system/node/node? ; do
+            echo $DPDK_NUM_HUGEPAGES | sudo tee $d/hugepages/hugepages-${HUGEPAGE_SIZE}kB/nr_hugepages
+        done
+    fi
+
+    if [ -n "$DPDK_HUGEPAGE_MOUNT_PAGESIZE" ]; then
+        sudo mount -t hugetlbfs  pagesize=$DPDK_HUGEPAGE_MOUNT_PAGESIZE  nodev $DPDK_HUGEPAGE_MOUNT
+    else
+        sudo mount -t hugetlbfs  nodev $DPDK_HUGEPAGE_MOUNT
+    fi
+}
+
+cmd_start(){
+    echo "mounting hugepages"
+    alloc_hugepages
+    echo "loading DPDK_INTERFACE_DRIVER diver"
+    load_igb_uio_module
+    bind_nics
+}
+
+case "$1" in
+    start)
+        cmd_start
+        ;;
+    *)
+        echo "Usage: $0 {start}" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

@@ -32,5 +32,5 @@ export RTE_SDK=/dpdk-${DPDK_VER}
 export DPDK_BUILD=${RTE_SDK}/${RTE_TARGET}
 ./boot.sh
 ./configure --with-dpdk=$DPDK_BUILD
-sed -i "s/2.4.90-1/2.4.91-1/" debian/changelog;sed -i "s?configure --with-linux?configure --with-dpdk=/dpdk-2.1.0/x86_64-native-linuxapp-gcc --with-linux?" debian/dkms.conf.in;sed -i "s?configure --with-linux?configure --with-dpdk=/dpdk-2.1.0/x86_64-native-linuxapp-gcc --with-linux?" debian/rules.modules;sed -i "s?configure --?configure -- --with-dpdk=/dpdk-2.1.0/x86_64-native-linuxapp-gcc?" debian/rules;make dist;tar -xzf openvswitch-2.4.90.tar.gz;
+sed -i "s?set ovs-vswitchd unix?set ovs-vswitchd --dpdk -c 0x1 -n 4 -- unix?" utilities/ovs-ctl.in;sed -i "s?configure --with-linux?configure --with-dpdk=/dpdk-2.1.0/x86_64-native-linuxapp-gcc --with-linux?" debian/dkms.conf.in;sed -i "s?configure --with-linux?configure --with-dpdk=/dpdk-2.1.0/x86_64-native-linuxapp-gcc --with-linux?" debian/rules.modules;sed -i "s?configure --?configure -- --with-dpdk=/dpdk-2.1.0/x86_64-native-linuxapp-gcc?" debian/rules;make dist;tar -xzf openvswitch-2.4.90.tar.gz;
 cd openvswitch-2.4.90;DEB_BUILD_OPTIONS='parallel=8 nocheck' fakeroot debian/rules binary
