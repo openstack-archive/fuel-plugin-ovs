@@ -14,13 +14,60 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-set -eux
 echo "sourcing config"
 source /etc/default/dpdk.conf
 
 RTE_SDK=${RTE_SDK:-/usr/share/dpdk/dpdk-2.1.0}
 RTE_TARGET=${RTE_TARGET:-x86_64-native-linuxapp-gcc}
 DPDK_DIR=$RTE_SDK
+
+
+remove_igb_uio_module(){
+    sudo rmmod igb_uio
+}
+
+unbind_nics(){
+    NICS=`RTE_SDK=${DPDK_DIR} RTE_TARGET=build ${DPDK_DIR}/tools/dpdk_nic_bind.py --status | grep drv=igb_uio | head -1`
+    while [ "${NICS}" != "" ]
+    do
+        BUSID=`echo "${NICS}" | awk '{ print $1 }'`
+        NANTIC=`echo "${NICS}" | grep "82599E[B|S]"`
+        FVL=`echo "${NICS}" | grep "Device 1584\|XL710"`
+        RRC=`echo "${NICS}" | grep "Device 15a4"`
+        EM=`echo "${NICS}" | grep "82540EM"`
+        if [ "${NANTIC}" != "" ] ;then
+            DRIVER=ixgbe
+        elif [ "${FVL}" != "" ] ;then
+            DRIVER=i40e
+        elif [ "${RRC}" != "" ] ;then
+            DRIVER=fm10k
+        elif [ "${EM}" != "" ] ;then
+            DRIVER=e1000
+        else
+            echo "Not supported at the moment, exit"
+            exit 1
+        fi
+        sudo RTE_SDK=${DPDK_DIR} RTE_TARGET=build ${DPDK_DIR}/tools/dpdk_nic_bind.py -b ${DRIVER} ${BUSID}
+        NICS=`RTE_SDK=${DPDK_DIR} RTE_TARGET=build ${DPDK_DIR}/tools/dpdk_nic_bind.py --status | grep drv=igb_uio | head -1`
+    done
+}
+
+free_hugepages() {
+    HUGEPAGE_SIZE=$(grep Hugepagesize /proc/meminfo | awk '{ print $2 }')
+
+    if [ -d $DPDK_HUGEPAGE_MOUNT ]; then
+       sudo rm -rf ${DPDK_HUGEPAGE_MOUNT}/rtemap*
+    fi
+
+    sudo umount ${DPDK_HUGEPAGE_MOUNT}
+
+    # de-allocate hugepages
+    if [ $DPDK_ALLOCATE_HUGEPAGES == 'True' ]; then
+       for d in /sys/devices/system/node/node? ; do
+          echo 0 | sudo tee $d/hugepages/hugepages-${HUGEPAGE_SIZE}kB/nr_hugepages
+       done
+    fi
+}
 
 load_igb_uio_module(){
     if [ ! -f $RTE_SDK/$RTE_TARGET/kmod/igb_uio.ko ];then
@@ -77,13 +124,23 @@ cmd_start(){
     load_igb_uio_module
     bind_nics
 }
-
+cmd_stop(){
+    #if physical nics bindings are defined, bind nics with linux driver
+    echo "rebinding nics to linux_driver"
+    unbind_nics
+    remove_igb_uio_module
+    echo "unmounting hugepages"
+    free_hugepages
+}
 case "$1" in
     start)
         cmd_start
         ;;
+    stop)
+        cmd_stop
+    ;;
     *)
-        echo "Usage: $0 {start}" >&2
+        echo "Usage: $0 {start|stop}" >&2
         exit 1
         ;;
 esac
