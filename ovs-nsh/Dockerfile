@@ -7,6 +7,8 @@ RUN apt-get install -y software-properties-common python-software-properties \
     fuseiso git genisoimage bind9-host wget curl lintian tmux lxc iptables \
     ca-certificates sudo apt-utils lsb-release libtool autoconf automake build-essential fakeroot libssl-dev graphviz dh-autoreconf python-qt4 python-twisted-conch python-zopeinterface linux-headers-`uname -r`
 
+RUN apt-get install -y pkg-config unzip liblua5.2-dev libpcap-dev libedit-dev libncurses5-dev libncursesw5-dev
+
 RUN echo "ALL ALL=NOPASSWD: ALL" > /etc/sudoers.d/open-sudo
 RUN chmod 0440 /etc/sudoers.d/open-sudo
 

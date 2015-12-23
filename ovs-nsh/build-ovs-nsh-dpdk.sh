@@ -19,7 +19,9 @@ cd /
 tar -czvf dpdk-${DPDK_VER}.tar.gz dpdk-${DPDK_VER}
 cd dpdk-${DPDK_VER}
 make install T=${RTE_TARGET}
+find . | grep "\.o$" | xargs rm -rf
 cd /
+tar czvf dpdk-${DPDK_VER}.bin.tar.gz dpdk-${DPDK_VER}
 
 git clone ${URL_OVS} openvswitch-dpdk
 cd openvswitch-dpdk
@@ -34,3 +36,15 @@ export DPDK_BUILD=${RTE_SDK}/${RTE_TARGET}
 ./configure --with-dpdk=$DPDK_BUILD
 sed -i "s?set ovs-vswitchd unix?set ovs-vswitchd --dpdk -c 0x1 -n 4 -- unix?" utilities/ovs-ctl.in;sed -i "s?configure --with-linux?configure --with-dpdk=/dpdk-2.1.0/x86_64-native-linuxapp-gcc --with-linux?" debian/dkms.conf.in;sed -i "s?configure --with-linux?configure --with-dpdk=/dpdk-2.1.0/x86_64-native-linuxapp-gcc --with-linux?" debian/rules.modules;sed -i "s?configure --?configure -- --with-dpdk=/dpdk-2.1.0/x86_64-native-linuxapp-gcc?" debian/rules;make dist;tar -xzf openvswitch-2.4.90.tar.gz;
 cd openvswitch-2.4.90;DEB_BUILD_OPTIONS='parallel=8 nocheck' fakeroot debian/rules binary
+
+
+cd /
+wget https://01.org/sites/default/files/downloads/intel-data-plane-performance-demonstrators/dppd-prox-v021.zip
+unzip dppd-prox-v021.zip
+export RTE_SDK=/dpdk-${DPDK_VER}
+export RTE_TARGET=x86_64-native-linuxapp-gcc
+cd /dppd-PROX-v021
+export DPPD_DIR=`pwd`; make
+find . | grep "\.o$" | xargs rm -rf
+cd /
+tar czvf dppd-prox-v021.bin.tar.gz dppd-PROX-v021
