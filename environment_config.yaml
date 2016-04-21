@@ -1,16 +1,16 @@
 attributes:
-    use_dpdk:
+    support_dpdk:
       type: "checkbox"
       weight: 20
       value: false
-      label: "Use dpdk"
-    dpdk-bind-nic:
-      value: 'eth2'
-      label: 'Network device'
-      weight: 40
-      type: "text"
-    use_dppd:
+      label: "support DPDK"
+    support_nsh:
       type: "checkbox"
       weight: 20
       value: false
-      label: "Use dppd"
+      label: "support NSH"
+    support_nsh_dpdk:
+      type: "checkbox"
+      weight: 20
+      value: false
+      label: "support NSH & DPDK"

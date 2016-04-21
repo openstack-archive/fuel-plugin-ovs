@@ -20,18 +20,11 @@ function build_pkg {
       pushd "${DIR}/repositories/${1}/"
       download_dependencies ${1}
       popd
-      cd ${DIR}/ovs-nsh
-      sudo docker build -t ovs-nsh .
-      container_id=`sudo docker run -d ovs-nsh`
-      sudo docker cp $container_id:/openvswitch/openvswitch-common_2.4.90-1_amd64.deb ${DIR}/repositories/ubuntu/ovs/
-      sudo docker cp $container_id:/openvswitch/openvswitch-datapath-dkms_2.4.90-1_all.deb ${DIR}/repositories/ubuntu/ovs/
-      sudo docker cp $container_id:/openvswitch/openvswitch-switch_2.4.90-1_amd64.deb ${DIR}/repositories/ubuntu/ovs/
-
-      sudo docker cp $container_id:/openvswitch-dpdk/openvswitch-common_2.4.90-1_amd64.deb ${DIR}/repositories/ubuntu/dpdk
-      sudo docker cp $container_id:/openvswitch-dpdk/openvswitch-datapath-dkms_2.4.90-1_all.deb ${DIR}/repositories/ubuntu/dpdk
-      sudo docker cp $container_id:/openvswitch-dpdk/openvswitch-switch_2.4.90-1_amd64.deb ${DIR}/repositories/ubuntu/dpdk
-      sudo docker cp $container_id:/dpdk-2.1.0.bin.tar.gz ${DIR}/repositories/ubuntu/dpdk/
-      sudo docker cp $container_id:/dppd-prox-v021.bin.tar.gz ${DIR}/repositories/ubuntu/dppd/
+      cd ${DIR}/ovs_build
+      sudo docker build -t ovs_build .
+      sudo docker run -v ${DIR}/repositories/ubuntu/ovs-nsh:/build -ti  ovs_build /ovs_build/build-ovs-nsh.sh
+      sudo docker run -v ${DIR}/repositories/ubuntu/ovs-dpdk:/build -ti  ovs_build /ovs_build/build-ovs-dpdk.sh
+      sudo docker run -v ${DIR}/repositories/ubuntu/ovs-nsh-dpdk:/build -ti  ovs_build /ovs_build/build-ovs-nsh-dpdk.sh
       ;;
     *) echo "Not supported system"; exit 1;;
   esac
