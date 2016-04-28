@@ -9,8 +9,3 @@ attributes:
       weight: 20
       value: false
       label: "support NSH"
-    support_nsh_dpdk:
-      type: "checkbox"
-      weight: 20
-      value: false
-      label: "support NSH & DPDK"
