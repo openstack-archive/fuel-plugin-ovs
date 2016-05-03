@@ -1,16 +1,18 @@
 #!/bin/bash
 
 DPDK_VER=2.1.0
+BUILD_HOME=`pwd`/tmp
 
 export RTE_TARGET=x86_64-native-linuxapp-gcc
-export RTE_SDK=/dpdk-${DPDK_VER}
+export RTE_SDK=${BUILD_HOME}/dpdk-${DPDK_VER}
 export DPDK_BUILD=${RTE_SDK}/${RTE_TARGET}
 
 OVS_COMMIT=121daded51b9798fe3722824b27a05c16806cbd1
 URL_OVS=https://github.com/openvswitch/ovs.git
 URL_DPDK=http://dpdk.org/browse/dpdk/snapshot/dpdk-${DPDK_VER}.tar.gz
 
-cd /
+mkdir -p ${BUILD_HOME}
+cd ${BUILD_HOME}
 wget ${URL_DPDK}
 tar -xzvf dpdk-${DPDK_VER}.tar.gz
 cd dpdk-${DPDK_VER}
@@ -20,7 +22,7 @@ sed -i -e 's/CONFIG_RTE_LIBRTE_VHOST=n/CONFIG_RTE_LIBRTE_VHOST=y/' \
        config/common_linuxapp
 make install T=${RTE_TARGET}
 
-cd /
+cd ${BUILD_HOME}
 git clone ${URL_OVS} openvswitch
 cd openvswitch
 git checkout ${OVS_COMMIT} -b development
@@ -34,4 +36,4 @@ sed -i "2iDATAPATH_CONFIGURE_OPTS='--with-dpdk=$DPDK_BUILD'" debian/rules.module
 debian/rules build
 fakeroot debian/rules binary
 
-cp /*.deb /build
+cp ${BUILD_HOME}/*.deb /deb
