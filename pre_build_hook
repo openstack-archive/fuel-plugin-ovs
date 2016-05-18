@@ -22,8 +22,8 @@ function build_pkg {
       popd
       cd ${DIR}/ovs_build
       sudo docker build -t ovs_build .
-      sudo docker run -v ${DIR}/repositories/ubuntu/:/deb -t  ovs_build /ovs_build/build-ovs-nsh.sh
-      sudo docker run -v ${DIR}/repositories/ubuntu/:/deb -t  ovs_build /ovs_build/build-ovs-dpdk.sh
+      #sudo docker run -v ${DIR}/repositories/ubuntu/:/deb -t  ovs_build /ovs_build/build-ovs-nsh.sh
+      #sudo docker run -v ${DIR}/repositories/ubuntu/:/deb -t  ovs_build /ovs_build/build-ovs-dpdk.sh
       sudo docker run -v ${DIR}/repositories/ubuntu/:/deb -t  ovs_build /ovs_build/build-ovs-nsh-dpdk.sh
       ;;
     *) echo "Not supported system"; exit 1;;
