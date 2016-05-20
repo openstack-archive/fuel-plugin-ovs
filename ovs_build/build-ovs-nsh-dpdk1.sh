@@ -8,9 +8,9 @@ sudo apt-get build-dep openvswitch -y
 sudo apt-get -y install devscripts dpkg-dev git wget
 
 cd ${BUILD_HOME}
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/dpdk_2.2.0-0ubuntu8.dsc
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/dpdk_2.2.0.orig.tar.gz
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/dpdk_2.2.0-0ubuntu8.debian.tar.xz
+wget https://launchpad.net/ubuntu/+archive/primary/+files/dpdk_2.2.0-0ubuntu8.dsc
+wget https://launchpad.net/ubuntu/+archive/primary/+files/dpdk_2.2.0.orig.tar.gz
+wget https://launchpad.net/ubuntu/+archive/primary/+files/dpdk_2.2.0-0ubuntu8.debian.tar.xz
 dpkg-source -x dpdk_2.2.0-0ubuntu8.dsc
 
 # copy from debian/control
@@ -29,19 +29,13 @@ sudo apt-get install -y debhelper \
                texlive-fonts-recommended  \
                texlive-latex-extra
 
-cd dpdk-2.2.0; rm -rf debian/patches/;
-cat << EOF > debian/changelog
-dpdk (2.2.0-1) unstable; urgency=low
-   [ DPDK team]
-   * New upstream version
-EOF
-debian/rules build; fakeroot debian/rules binary
+cd dpdk-2.2.0; rm -rf debian/patches/; debian/rules build; fakeroot debian/rules binary
 cd ${BUILD_HOME}; sudo dpkg -i *.deb
 
 cd ${BUILD_HOME}
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/openvswitch-dpdk_2.4.0.orig.tar.gz
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/openvswitch-dpdk_2.4.0-0ubuntu1.dsc
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/openvswitch-dpdk_2.4.0-0ubuntu1.debian.tar.xz
+wget https://launchpad.net/ubuntu/+archive/primary/+files/openvswitch-dpdk_2.4.0.orig.tar.gz
+wget https://launchpad.net/ubuntu/+archive/primary/+files/openvswitch-dpdk_2.4.0-0ubuntu1.dsc
+wget https://launchpad.net/ubuntu/+archive/primary/+files/openvswitch-dpdk_2.4.0-0ubuntu1.debian.tar.xz
 dpkg-source -x  openvswitch-dpdk_2.4.0-0ubuntu1.dsc
 
 
@@ -74,11 +68,6 @@ sed -i "s/include\/rte_config.h/include\/dpdk\/rte_config.h/" acinclude.m4
 sed -i 's/DPDK_INCLUDE=.*/DPDK_INCLUDE=$RTE_SDK\/include\/dpdk/'  acinclude.m4
 autoreconf --install
 rm -rf debian/patches/ .git;
-cat << EOF > debian/changelog
-openvswitch (2.5.1-1) unstable; urgency=low
-   [ Open vSwitch team ]
-   * New upstream version
-EOF
 debian/rules build; fakeroot debian/rules binary
 
 cd ${BUILD_HOME}/ovs
