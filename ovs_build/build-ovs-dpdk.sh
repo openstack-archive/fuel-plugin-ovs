@@ -69,3 +69,4 @@ sed -i 's/DPDK_INCLUDE=.*/DPDK_INCLUDE=$RTE_SDK\/include\/dpdk/'  acinclude.m4
 autoreconf --install
 rm -rf debian/patches/ .git;
 debian/rules build; fakeroot debian/rules binary
+cp ${BUILD_HOME}/*.deb /deb
