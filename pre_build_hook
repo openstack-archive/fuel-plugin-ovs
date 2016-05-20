@@ -5,26 +5,14 @@ set -eux
 BUILD_FOR=${BUILD_FOR:-ubuntu}
 DIR="$(dirname `readlink -f $0`)"
 
-INCLUDE_DEPENDENCIES=${INCLUDE_DEPENDENCIES:-true}
-
-function download_dependencies {
-  if [ "$INCLUDE_DEPENDENCIES" = true ]
-  then
-    wget --content-disposition -N -i  "${DIR}/ovs_package/${1}/dependencies.txt"
-  fi
-}
-
 function build_pkg {
   case $1 in
     ubuntu)
-      pushd "${DIR}/repositories/${1}/"
-      download_dependencies ${1}
-      popd
+      mkdir -p ${DIR}/repositories/ubuntu
       cd ${DIR}/ovs_build
       sudo docker build -t ovs_build .
-      sudo docker run -v ${DIR}/repositories/ubuntu/:/deb -t  ovs_build /ovs_build/build-ovs-nsh.sh
-      sudo docker run -v ${DIR}/repositories/ubuntu/:/deb -t  ovs_build /ovs_build/build-ovs-dpdk.sh
-      sudo docker run -v ${DIR}/repositories/ubuntu/:/deb -t  ovs_build /ovs_build/build-ovs-nsh-dpdk.sh
+      sudo docker run -v ${DIR}/repositories/ubuntu:/deb -t  ovs_build /ovs_build/build-ovs-dpdk.sh
+      sudo docker run -v ${DIR}/ovs_package/ubuntu/:/deb -t  ovs_build /ovs_build/build-ovs-nsh-dpdk.sh
       ;;
     *) echo "Not supported system"; exit 1;;
   esac
