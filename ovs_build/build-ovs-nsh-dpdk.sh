@@ -6,6 +6,8 @@ OVS_VER=${OVS_VER:-2.5.90}
 BUILD_HOME=$HOME/nsh
 BUILD_DEST=${BUILD_DEST:-/deb}
 
+export DEB_BUILD_OPTIONS='parallel=8 nocheck'
+
 sudo apt-get build-dep openvswitch -y
 sudo apt-get -y install devscripts dpkg-dev git wget
 
