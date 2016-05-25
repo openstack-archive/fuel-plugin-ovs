@@ -49,7 +49,7 @@ wget -c https://launchpad.net/ubuntu/+archive/primary/+files/openvswitch-dpdk_2.
 dpkg-source -x openvswitch-dpdk_2.4.0-0ubuntu1.dsc
 
 # copy from debian/control
-sudo apt-get intall -y autoconf \
+sudo apt-get install -y autoconf \
                automake \
                bzip2 \
                debhelper \
