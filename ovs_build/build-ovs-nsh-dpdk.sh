@@ -19,6 +19,7 @@ wget -c https://launchpad.net/ubuntu/+archive/primary/+files/dpdk_2.2.0.orig.tar
 wget -c https://launchpad.net/ubuntu/+archive/primary/+files/dpdk_2.2.0-0ubuntu8.debian.tar.xz
 dpkg-source -x dpdk_2.2.0-0ubuntu8.dsc
 
+sudo apt-get remove -y libxenstore3.0
 # copy from debian/control
 sudo apt-get install -y debhelper \
                dh-python \
@@ -43,6 +44,7 @@ dpdk (2.2.0-1) unstable; urgency=low
 EOF
 debian/rules build; fakeroot debian/rules binary
 cd ${BUILD_HOME}; sudo dpkg -i *.deb
+cp /var/cache/apt/archives/libxenstore3.0* ${BUILD_HOME}
 
 cd ${BUILD_HOME}
 wget -c https://launchpad.net/ubuntu/+archive/primary/+files/openvswitch-dpdk_2.4.0.orig.tar.gz

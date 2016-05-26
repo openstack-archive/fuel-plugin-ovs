@@ -8,20 +8,17 @@ DIR="$(dirname `readlink -f $0`)"
 function build_pkg {
   case $1 in
     ubuntu)
+      rm -rf ${DIR}/repositories/ubuntu; mkdir -p ${DIR}/repositories/ubuntu
+
       cd ${DIR}/ovs_build
       sudo docker build -t ovs_build .
 
-      rm -rf ${DIR}/repositories/ubuntu; mkdir -p ${DIR}/repositories/ubuntu
-      rm -rf ${DIR}/tmp/; mkdir -p ${DIR}/tmp/; chmod 777 ${DIR}/tmp
-      sudo docker run -v ${DIR}/tmp:/deb -t  ovs_build /ovs_build/build-ovs-dpdk.sh
-      cp -r ${DIR}/tmp/*.deb ${DIR}/repositories/ubuntu
+      rm -rf ${DIR}/ovs-dpdk; mkdir -p ${DIR}/ovs-dpdk/; chmod 777 ${DIR}/ovs-dpdk
+      sudo docker run -v ${DIR}/ovs-dpdk:/deb -t  ovs_build /ovs_build/build-ovs-dpdk.sh
 
-      rm -rf ${DIR}/ovs_package/ubuntu; mkdir -p ${DIR}/ovs_package/ubuntu
-      rm -rf ${DIR}/tmp/; mkdir -p ${DIR}/tmp/; chmod 777 ${DIR}/tmp
-      sudo docker run -v ${DIR}/tmp:/deb -t  ovs_build /ovs_build/build-ovs-nsh-dpdk.sh
-      cp -r ${DIR}/tmp/*.deb ${DIR}/ovs_package/ubuntu
+      rm -rf ${DIR}/ovs-nsh; mkdir -p ${DIR}/ovs-nsh/; chmod 777 ${DIR}/ovs-nsh
+      sudo docker run -v ${DIR}/ovs-nsh:/deb -t  ovs_build /ovs_build/build-ovs-nsh-dpdk.sh
 
-      rm -rf ${DIR}/tmp/;
       ;;
     *) echo "Not supported system"; exit 1;;
   esac
