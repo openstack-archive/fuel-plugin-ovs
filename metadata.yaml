@@ -1,7 +1,7 @@
 # Plugin name
 name: fuel-plugin-ovs
 # Human-readable name for your plugin
-title: Openvswitch with NSH/DPDK support
+title: Install Openvswitch with NSH/DPDK
 # Plugin version
 version: '0.9.0'
 # Description

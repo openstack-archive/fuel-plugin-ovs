@@ -1,11 +1,11 @@
 attributes:
-    support_dpdk:
+    install_dpdk:
       type: "checkbox"
       weight: 20
       value: false
-      label: "support DPDK"
-    support_nsh:
+      label: "install DPDK"
+    install_nsh:
       type: "checkbox"
       weight: 20
       value: false
-      label: "support NSH"
+      label: "install NSH"
