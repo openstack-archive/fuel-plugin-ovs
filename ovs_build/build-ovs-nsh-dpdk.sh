@@ -43,6 +43,7 @@ dpdk (2.2.0-1) unstable; urgency=low
 EOF
 debian/rules build; fakeroot debian/rules binary
 cd ${BUILD_HOME}; sudo dpkg -i *.deb
+apt-get download libxenstore3.0
 
 cd ${BUILD_HOME}
 wget -c https://launchpad.net/ubuntu/+archive/primary/+files/openvswitch-dpdk_2.4.0.orig.tar.gz

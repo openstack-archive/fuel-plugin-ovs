@@ -1,17 +1,7 @@
-- id: ovs_nsh_dpdk
-  type: group
-  role: ['compute']
-  requires: [deploy_start]
-  required_for: [deploy_end]
-  tasks: [hiera, setup_repositories, fuel_pkgs, globals, tools, logging, ovs_install_compute]
-  parameters:
-    strategy:
-      type: parallel
-
 - id: ovs_install_compute
   type: puppet
   version: 2.0.0
-  groups: [ovs_nsh_dpdk]
+  groups: [compute]
   required_for: [pre_deployment_end]
   requires: [pre_deployment_start]
   parameters:
