@@ -31,7 +31,7 @@ d. SOCK5_PORT: socks5 proxy for fuel VM
 
 In fresh installation, 01_setup_network.sh can be run by:
 
-curl --socks5 <socks5 proxy> https://raw.githubusercontent.com/openstack/fuel-plugin-ovs/master/demo/01_setup_network.sh | bash
+curl --socks5 <socks5-proxy> https://raw.githubusercontent.com/openstack/fuel-plugin-ovs/master/demo/01_setup_network.sh | bash -s -- -h=<http-proxy>-d=<dns-server> -s=<socks5-ip> -p=<socks5-port>
 
 2. 02_install_packages.sh
 

@@ -1,8 +1,34 @@
 #!/bin/sh
-HTTP_PROXY=http://10.19.8.225:911
-DNS_SERVER=10.248.2.1
-SOCK5_IP=10.7.211.16
-SOCK5_PORT=1080
+
+HTTP_PROXY=${HTTP_PROXY:-http://10.19.8.225:911}
+DNS_SERVER=${DNS_SERVER:-10.248.2.1}
+SOCKS5_IP=${SOCKS5_IP:-10.7.211.16}
+SOCKS5_PORT=${SOCKS5:-1080}
+
+for i in "$@"
+do
+case $i in
+    -h=*|--http=*)
+    HTTP_PROXY="${i#*=}"
+    shift
+    ;;
+    -d=*|--dns=*)
+    DNS_SERVER="${i#*=}"
+    shift
+    ;;
+    -s=*|--socks5-ip=*)
+    SOCKS5_IP="${i#*=}"
+    shift
+    ;;
+    -p=*|--socks5-port=*)
+    SOCKS5_PORT="${i#*=}"
+    shift
+    ;;
+    *)
+    # unknown option
+    ;;
+esac
+done
 
 cat <<EOF | sudo tee /etc/apt/apt.conf
 Acquire::http::Proxy "$HTTP_PROXY";
@@ -23,8 +49,8 @@ base {
 redsocks {
  local_ip = 0.0.0.0;
  local_port = 6666;
- ip = $SOCK5_IP;
- port = $SOCK5_PORT;
+ ip = $SOCKS5_IP;
+ port = $SOCKS5_PORT;
  type = socks5;
 }
 
