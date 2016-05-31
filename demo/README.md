@@ -7,7 +7,12 @@ Overview
 This directory includes scripts to setup fuel ovs plugin demo.
 
 The scripts are ONLY tested in new installation of Ubuntu 14.04.03 Desktop
-64bit. Extra configuration or Extra packages such as virtualbox may break
+64bit in server:
+a. 16G Memory
+b. 1T Disk
+c. virtualization support
+
+Extra configuration or Extra packages such as virtualbox may break
 functionality. All packages or network configuration are provided by the
 the following scripts.
 
@@ -23,6 +28,10 @@ a. HTTP_PROXY: proxy for package installation
 b. DNS_SERVER: DNS for fuel VM
 c. SOCK5_IP:  socks5 proxy for fuel VM
 d. SOCK5_PORT: socks5 proxy for fuel VM
+
+In fresh installation, 01_setup_network.sh can be run by:
+
+curl --socks5 <socks5 proxy> https://raw.githubusercontent.com/openstack/fuel-plugin-ovs/master/demo/01_setup_network.sh | bash
 
 2. 02_install_packages.sh
 
