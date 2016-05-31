@@ -11,7 +11,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   config.vm.define "fuel" do | h |
     h.vm.host_name = "fuel"
-    h.vm.provision :shell, :inline => "/vagrant/build_fuel_plugin.sh"
+    h.vm.provision :shell, :inline => "/vagrant/build_fuel_plugin.sh", privileged: false
     h.vm.synced_folder "..", "/fuel-plugin"
     h.vm.provider :virtualbox do |v|
       v.customize ["modifyvm", :id, "--memory", 4096]

@@ -1,8 +1,8 @@
 #!/bin/bash
 
-OVS_COMMIT=cd4764fdd8ce0aa0063525dad0e67f20b3bcf6e9
+OVS_COMMIT=7d8eadce4df70f563a0c0123c612f6117c8ff864
 URL_OVS=https://github.com/openvswitch/ovs.git
-OVS_VER=${OVS_VER:-2.5.1}
+OVS_VER=${OVS_VER:-2.5.90}
 BUILD_HOME=$HOME/dpdk
 BUILD_DEST=${BUILD_DEST:-/deb}
 
@@ -39,7 +39,7 @@ cd dpdk-2.2.0; rm -rf debian/patches/;
 cat << EOF > debian/changelog
 dpdk (2.2.0-1) unstable; urgency=low
    [ DPDK team]
-   * New upstream version
+   * DPDK 2.2.0
 EOF
 debian/rules build; fakeroot debian/rules binary
 cd ${BUILD_HOME}; sudo dpkg -i *.deb
@@ -84,7 +84,7 @@ rm -rf debian/patches/ .git;
 cat << EOF > debian/changelog
 openvswitch-dpdk (${OVS_VER}-1) unstable; urgency=low
    [ Open vSwitch team ]
-   * Open vSwitch Upstream
+   * New upstream version
 EOF
 debian/rules build; fakeroot debian/rules binary
 
