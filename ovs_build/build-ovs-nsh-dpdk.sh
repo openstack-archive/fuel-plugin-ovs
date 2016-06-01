@@ -38,8 +38,8 @@ sudo apt-get install -y debhelper \
 cd dpdk-2.2.0; rm -rf debian/patches/;
 cat << EOF > debian/changelog
 dpdk (2.2.0-1) unstable; urgency=low
-   [ DPDK team]
-   * New upstream version
+  * DPDK 2.2.0
+ -- DPDK team <dev@dpdk.org>
 EOF
 debian/rules build; fakeroot debian/rules binary
 cd ${BUILD_HOME}; sudo dpkg -i *.deb
@@ -88,13 +88,17 @@ sed -i 's/DPDK_INCLUDE=.*/DPDK_INCLUDE=$RTE_SDK\/include\/dpdk/'  acinclude.m4
 autoreconf --install
 rm -rf debian/patches/ .git;
 cat << EOF > debian/changelog
-openvswitch-dpdk (${OVS_VER}-1) unstable; urgency=low
-   [ Open vSwitch team ]
-   * Support NSH
+openvswitch-dpdk (${OVS_VER}-1.nsh) unstable; urgency=low
+  * Support NSH
+ -- Open vSwitch team <dev@openvswitch.org>
 EOF
 debian/rules build; fakeroot debian/rules binary
 
 cd ${BUILD_HOME}/ovs
+cat << EOF > debian/changelog
+openvswitch (${OVS_VER}-1.nsh) unstable; urgency=low
+  * Support NSH
+ -- Open vSwitch team <dev@openvswitch.org>
+EOF
 debian/rules build; fakeroot debian/rules binary
-
 cp ${BUILD_HOME}/*.deb ${BUILD_DEST}
