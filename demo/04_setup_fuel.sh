@@ -1,5 +1,7 @@
 #!/bin/bash
 
+DNS_SERVER=${DNS_SERVER:-10.248.2.1}
+
 #setup ntp server
 sudo service ntp restart
 
@@ -18,6 +20,20 @@ sudo ifconfig br-eth1 172.16.0.1/24 up
 sudo ifconfig br-dpdk down
 sudo brctl delbr br-dpdk
 sudo brctl addbr br-dpdk
+
+sudo iptables -t nat -D PREROUTING  -j PRE_FUEL
+sudo iptables -t nat -N PRE_FUEL
+sudo iptables -t nat -F PRE_FUEL
+sudo iptables -t nat -A PRE_FUEL -p udp --dport 53  -j DNAT --to-destination $DNS_SERVER
+sudo iptables -t nat -A PRE_FUEL -p udp --dport 123 -j DNAT --to-destination 10.20.0.1
+sudo iptables -t nat -A PREROUTING  -j PRE_FUEL
+
+sudo iptables -t nat -D POSTROUTING  -j POST_FUEL
+sudo iptables -t nat -N POST_FUEL
+sudo iptables -t nat -F POST_FUEL
+sudo iptables -t nat -A POST_FUEL -s 10.20.0.0/24 -j MASQUERADE
+sudo iptables -t nat -A POST_FUEL -s 172.16.0.0/24 -j MASQUERADE
+sudo iptables -t nat -A POSTROUTING  -j POST_FUEL
 
 #setup master
 

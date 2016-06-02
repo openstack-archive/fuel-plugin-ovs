@@ -19,19 +19,19 @@ the following scripts.
 Scripts
 -------
 
+0. 00_bootstrap.sh
+   a. copy from https://raw.githubusercontent.com/openstack/fuel-plugin-ovs/master/demo/00_bootstrap.sh
+   b. change HTTP_PROXY
+   c. run the script
+
 1. 01_setup_network.sh
 
 The script is to setup socks5 proxy. You may change the script to support
 NAT. The following network setting is updated before running the script:
 
-a. HTTP_PROXY: proxy for package installation
-b. DNS_SERVER: DNS for fuel VM
-c. SOCK5_IP:  socks5 proxy for fuel VM
-d. SOCK5_PORT: socks5 proxy for fuel VM
-
-In fresh installation, 01_setup_network.sh can be run by:
-
-curl --socks5 <socks5-proxy> https://raw.githubusercontent.com/openstack/fuel-plugin-ovs/master/demo/01_setup_network.sh | bash -s -- -h=<http-proxy>-d=<dns-server> -s=<socks5-ip> -p=<socks5-port>
+a. SOCK5_IP:  socks5 proxy for fuel VM
+b. SOCK5_PORT: socks5 proxy for fuel VM
+b. RED_TCPORT: redsocks tcp port
 
 2. 02_install_packages.sh
 
@@ -43,8 +43,11 @@ The script is to setup vnc. Default vnc password is 123456.
 
 4. 04_setup_fuel.sh
 
-The script is to create 1 master VM and 4 slave VMs. Fuel ISO is copied to this
-directory before running the script.
+The script is to create 1 master VM and 4 slave VMs:
+
+a. change DNS_SERVER
+b. download ISO. Examle: http://seed-us1.fuel-infra.org/fuelweb-community-release/fuel-community-9.0.iso.
+c. run the script
 
 5. 05_destroy_fuel.sh
 
