@@ -19,19 +19,18 @@ the following scripts.
 Scripts
 -------
 
+0. 00_bootstrap.sh
+   a. copy from https://raw.githubusercontent.com/openstack/fuel-plugin-ovs/master/demo/00_bootstrap.sh
+   b. change HTTP_PROXY
+   c. run the script
+
 1. 01_setup_network.sh
 
 The script is to setup socks5 proxy. You may change the script to support
 NAT. The following network setting is updated before running the script:
 
-a. HTTP_PROXY: proxy for package installation
-b. DNS_SERVER: DNS for fuel VM
-c. SOCK5_IP:  socks5 proxy for fuel VM
-d. SOCK5_PORT: socks5 proxy for fuel VM
-
-In fresh installation, 01_setup_network.sh can be run by:
-
-curl --socks5 <socks5-proxy> https://raw.githubusercontent.com/openstack/fuel-plugin-ovs/master/demo/01_setup_network.sh | bash -s -- -h=<http-proxy>-d=<dns-server> -s=<socks5-ip> -p=<socks5-port>
+a. SOCK5_IP:  socks5 proxy for fuel VM
+b. SOCK5_PORT: socks5 proxy for fuel VM
 
 2. 02_install_packages.sh
 
