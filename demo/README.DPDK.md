@@ -21,6 +21,9 @@ How to enalbe
 
 5. Follow document[1] 
 
+6. Enable Hugepages for Guest VM
+   nova flavor-key m1.tiny set hw:mem_page_size=2048
+
 Related Documents
 ---------------
 [1] http://github.com/openstack/fuel-specs/blob/master/specs/9.0/support-dpdk.rst
