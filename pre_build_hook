@@ -13,15 +13,18 @@ function build_pkg {
       cd ${DIR}/ovs_build
       sudo docker build -t ovs_build .
 
-      rm -rf ${DIR}/deb;  mkdir -p ${DIR}/deb; chmod 777 ${DIR}/deb; cd ${DIR}/deb
-      sudo docker run -v ${DIR}/deb:/deb -t  ovs_build /ovs_build/build-ovs-dpdk.sh
-      tar czvf ../repositories/ubuntu/ovs-dpdk.tar.gz .; cd ..
+      DEB_DIR=${DIR}/deb-ovs-dpdk
+      rm -rf ${DEB_DIR};  mkdir -p ${DEB_DIR}; chmod 777 ${DEB_DIR};
+      sudo docker run -v ${DEB_DIR}:/deb -t  ovs_build /ovs_build/build-ovs-dpdk.sh
+      cd ${DEB_DIR}; tar czvf ../repositories/ubuntu/ovs-dpdk.tar.gz .; cd ..
+      rm -rf ${DEB_DIR}
 
-      rm -rf ${DIR}/deb;  mkdir -p ${DIR}/deb; chmod 777 ${DIR}/deb; cd ${DIR}/deb
-      sudo docker run -v ${DIR}/ovs-nsh:/deb -t  ovs_build /ovs_build/build-ovs-nsh-dpdk.sh
-      tar czvf ../repositories/ubuntu/ovs-nsh-dpdk.tar.gz .; cd ..
+      DEB_DIR=${DIR}/deb-ovs-nsh-dpdk
+      rm -rf ${DEB_DIR};  mkdir -p ${DEB_DIR}; chmod 777 ${DEB_DIR};
+      sudo docker run -v ${DEB_DIR}:/deb -t  ovs_build /ovs_build/build-ovs-nsh-dpdk.sh
+      cd ${DEB_DIR}; tar czvf ../repositories/ubuntu/ovs-nsh-dpdk.tar.gz .; cd ..
+      rm -rf ${DEB_DIR}
 
-      rm -rf ${DIR}/deb;
       ;;
     *) echo "Not supported system"; exit 1;;
   esac
