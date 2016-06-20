@@ -13,12 +13,15 @@ function build_pkg {
       cd ${DIR}/ovs_build
       sudo docker build -t ovs_build .
 
-      rm -rf ${DIR}/ovs-dpdk; mkdir -p ${DIR}/ovs-dpdk/; chmod 777 ${DIR}/ovs-dpdk
-      sudo docker run -v ${DIR}/ovs-dpdk:/deb -t  ovs_build /ovs_build/build-ovs-dpdk.sh
+      rm -rf ${DIR}/deb;  mkdir -p ${DIR}/deb; chmod 777 ${DIR}/deb; cd ${DIR}/deb
+      sudo docker run -v ${DIR}/deb:/deb -t  ovs_build /ovs_build/build-ovs-dpdk.sh
+      tar czvf ../repositories/ubuntu/ovs-dpdk.tar.gz .; cd ..
 
-      rm -rf ${DIR}/ovs-nsh; mkdir -p ${DIR}/ovs-nsh/; chmod 777 ${DIR}/ovs-nsh
+      rm -rf ${DIR}/deb;  mkdir -p ${DIR}/deb; chmod 777 ${DIR}/deb; cd ${DIR}/deb
       sudo docker run -v ${DIR}/ovs-nsh:/deb -t  ovs_build /ovs_build/build-ovs-nsh-dpdk.sh
+      tar czvf ../repositories/ubuntu/ovs-dpdk.tar.gz .; cd ..
 
+      rm -rf ${DIR}/deb;
       ;;
     *) echo "Not supported system"; exit 1;;
   esac

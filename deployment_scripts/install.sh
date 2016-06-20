@@ -12,7 +12,7 @@ dpdk=$3
 
 if [ $nsh = 'true' ]
 then
-    wget  -r -np -nH --cut-dirs=3 http://$host:8080/plugins/fuel-plugin-ovs-0.9/ovs-nsh/
+    curl  http://$host:8080/plugins/fuel-plugin-ovs-0.9/repositories/ubuntu/ovs-nsh-dpdk.tar.gz | tar -xzv
     dpkg -i openvswitch-datapath-dkms_2.5.90-1.nsh_all.deb
     dpkg -i openvswitch-common_2.5.90-1.nsh_amd64.deb
     dpkg -i openvswitch-switch_2.5.90-1.nsh_amd64.deb
@@ -25,7 +25,7 @@ then
         dpkg -i openvswitch-switch-dpdk_2.5.90-1.nsh_amd64.deb
     fi
 else
-    wget  -r -np -nH --cut-dirs=3 http://$host:8080/plugins/fuel-plugin-ovs-0.9/ovs-dpdk/
+    curl  http://$host:8080/plugins/fuel-plugin-ovs-0.9/repositories/ubuntu/ovs-dpdk.tar.gz | tar -xzv
     dpkg -i openvswitch-datapath-dkms_2.5.90-1_all.deb
     dpkg -i openvswitch-common_2.5.90-1_amd64.deb
     dpkg -i openvswitch-switch_2.5.90-1_amd64.deb
