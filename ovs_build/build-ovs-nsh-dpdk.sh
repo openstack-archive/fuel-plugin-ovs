@@ -17,10 +17,7 @@ sudo apt-get -y install devscripts dpkg-dev git wget
 rm -rf ${BUILD_HOME}; mkdir -p ${BUILD_HOME}
 
 cd ${BUILD_HOME}
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/dpdk_2.2.0-0ubuntu8.dsc
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/dpdk_2.2.0.orig.tar.gz
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/dpdk_2.2.0-0ubuntu8.debian.tar.xz
-dpkg-source -x dpdk_2.2.0-0ubuntu8.dsc
+dget -x -u https://launchpad.net/ubuntu/+archive/primary/+files/dpdk_2.2.0-0ubuntu8.dsc
 
 # copy from debian/control
 sudo apt-get install -y debhelper \
@@ -49,10 +46,7 @@ cd ${BUILD_HOME}; sudo dpkg -i *.deb
 apt-get download libxenstore3.0
 
 cd ${BUILD_HOME}
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/openvswitch-dpdk_2.4.0.orig.tar.gz
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/openvswitch-dpdk_2.4.0-0ubuntu1.dsc
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/openvswitch-dpdk_2.4.0-0ubuntu1.debian.tar.xz
-dpkg-source -x openvswitch-dpdk_2.4.0-0ubuntu1.dsc
+dget -x -u https://launchpad.net/ubuntu/+archive/primary/+files/openvswitch-dpdk_2.4.0-0ubuntu1.dsc
 
 # copy from debian/control
 sudo apt-get install -y autoconf \
