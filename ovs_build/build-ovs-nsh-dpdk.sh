@@ -1,10 +1,13 @@
 #!/bin/bash
 
+set -eux
+
 OVS_COMMIT=7d433ae57ebb90cd68e8fa948a096f619ac4e2d8
 URL_OVS=https://github.com/openvswitch/ovs.git
 OVS_VER=${OVS_VER:-2.5.90}
 BUILD_HOME=$HOME/nsh
 BUILD_DEST=${BUILD_DEST:-/deb}
+DIR="$(dirname `readlink -f $0`)"
 
 export DEB_BUILD_OPTIONS='parallel=8 nocheck'
 
@@ -73,11 +76,10 @@ sudo apt-get install -y autoconf \
 
 git clone https://github.com/openvswitch/ovs.git
 cd ovs; git checkout ${OVS_COMMIT}
-DIR="$(dirname `readlink -f $0`)"
-PATCHES=$(cd patches; echo *patch; cd ..)
+PATCHES=$(cd ${DIR}/patches; echo *patch)
 for patch in ${PATCHES}
 do
-    patch -p1 < {DIR}/patches/${patch}
+    patch -p1 < ${DIR}/patches/${patch}
 done
 cd ${BUILD_HOME}; tar czvf ovs.tar.gz ovs
 rm -rf openvswitch-dpdk-${OVS_VER}*
