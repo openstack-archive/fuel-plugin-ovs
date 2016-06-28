@@ -1,7 +1,9 @@
 #!/bin/sh
 
-cat << EOF | sudo tee /etc/sudoers.d/fuel
-fuel ALL = (root) NOPASSWD:ALL
+user=`whoami`
+
+cat << EOF | sudo tee /etc/sudoers.d/${user}
+${user} ALL = (root) NOPASSWD:ALL
 EOF
 
 sudo apt-get update -y
