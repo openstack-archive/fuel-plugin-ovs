@@ -6,8 +6,8 @@ Acquire::http::Proxy "$HTTP_PROXY";
 EOF
 
 sudo apt-get update -y
-sudo apt-get install -y git
+sudo apt-get install -y git openssh-server
 
 git config --global http.proxy ${HTTP_PROXY}
-git clone https://github.com/openstack/fuel-plugin-ovs/
 git config --global --unset http.proxy
+git clone https://github.com/openstack/fuel-plugin-ovs/
