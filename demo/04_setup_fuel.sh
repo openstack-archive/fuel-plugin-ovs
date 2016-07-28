@@ -62,7 +62,7 @@ do
 done
 
 plink -ssh  -pw r00tme root@10.20.0.2 "cat /etc/fuel/astute.yaml" > astute.yaml
-sed -i "/.*FEATURE_GROUPS.*/s/\[\]/\n \-\"Experimental\"/" astute.yaml
+sed -i "/.*FEATURE_GROUPS.*/s/\[\]/\n \- \"experimental\"/" astute.yaml
 cat astute.yaml | plink -ssh  -pw r00tme root@10.20.0.2 "dd of=/etc/fuel/astute.yaml"
 plink -ssh  -pw r00tme root@10.20.0.2 "pkill fuelmenu"
 
