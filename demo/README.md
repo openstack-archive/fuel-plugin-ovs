@@ -46,9 +46,11 @@ The script is to setup vnc. Default vnc password is 123456.
 The script is to create 1 master VM and 4 slave VMs:
 
 a. change DNS_SERVER
-b. download ISO. Examle: http://seed-us1.fuel-infra.org/fuelweb-community-release/fuel-community-9.0.iso.
+b. download ISO in fuel-plugin-ovs/demo
+   Examle1: wget http://seed-us1.fuel-infra.org/fuelweb-community-release/fuel-community-9.0.iso.
+   Examle2: wget http://artifacts.opnfv.org/fuel/opnfv-2016-08-03_23-58-37.iso
 c. run the script
 
-5. 05_destroy_fuel.sh
+5. 94_destroy_fuel.sh
 
 The script is to destroy 1 master VM and 4 slave VMs.
