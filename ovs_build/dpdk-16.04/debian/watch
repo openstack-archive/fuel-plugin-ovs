@@ -1,0 +1,2 @@
+version=3
+http://www.dpdk.org/download /browse/dpdk/snapshot/dpdk-(.+)\.(?:zip|tgz|tbz|txz|(?:tar\.(?:gz|bz2|xz)))

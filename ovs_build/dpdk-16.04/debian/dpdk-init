@@ -1,0 +1,251 @@
+#!/bin/sh
+#
+# dpdk-init: startup script to initialize a dpdk runtime environment
+#
+# Copyright 2015-2016 Canonical Ltd.
+# Autor: Stefan Bader <stefan.bader@canonical.com>
+# Autor: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License version 3,
+#    as published by the Free Software Foundation.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+set -e
+
+DPDK_BIND="/sbin/dpdk_nic_bind"
+DPDK_INTERF="/etc/dpdk/interfaces"
+
+
+# pagesize supports [G|g]/[M|m]/[K|k]
+get_kbytes() {
+    local unit
+    local num
+    unit=$(echo "${1}" | sed 's/[0-9]*//g')
+    num=$(echo "${1}" | sed 's/[^0-9]*//g')
+    case ${unit} in
+    *g | *G)
+        echo $((num*1024*1024))
+        ;;
+    *m | *M)
+        echo $((num*1024))
+        ;;
+    *k | *K)
+        echo $((num))
+        ;;
+    *)
+        echo $((num/1024))
+        ;;
+    esac
+}
+
+get_default_hpgsz() {
+    default_hpgsz=$(grep "Hugepagesize:" /proc/meminfo \
+        | sed 's/^Hugepagesize:\s*//g' | sed 's/\s*kB$//g')
+    echo "${default_hpgsz}"
+}
+
+get_hugetlbfs_mountpoint() {
+    local requested_hpgsz
+    local mp_hpgsz
+    requested_hpgsz=$(get_kbytes "${1}")
+
+    grep hugetlbfs /proc/mounts | while read \
+        mntfrom mntpoint mntfstype mntopt mntdump mntfsck; do
+
+        # check if the current muntpoint is of the requested huge page size
+        case ${mntopt} in
+        *pagesize=*)
+            mp_hpgsz=$(echo "${mntopt}" | sed 's/.*pagesize=//g' | sed 's/,.*//g')
+            mp_hpgsz=$(get_kbytes "${mp_hpgsz}")
+            ;;
+        *)
+            mp_hpgsz=$(get_default_hpgsz)
+            ;;
+        esac
+        if [ "${requested_hpgsz}" -eq "${mp_hpgsz}" ]; then
+            echo "${mntpoint}"
+            return
+        fi
+    done
+}
+
+_mount_hugetlbfs() {
+    local MNT="/dev/hugepages"
+    local MNTOPTS=""
+    local requested_hpgsz
+    local default_hpgsz
+    requested_hpgsz=$(get_kbytes "${1}")
+    default_hpgsz=$(get_default_hpgsz)
+
+    # kernel might not support the requested size
+    if [ ! -d "/sys/kernel/mm/hugepages/hugepages-${requested_hpgsz}kB" ]; then
+        echo "WARNING: requested page size of ${requested_hpgsz}kB " \
+             "not supported by the kernel"
+        return 0
+    fi
+
+    # special case if this is not the default huge page size
+    if [ "${requested_hpgsz}" -ne "${default_hpgsz}" ]; then
+        MNT="${MNT}-${requested_hpgsz}"
+        MNTOPTS="pagesize=${requested_hpgsz}K"
+    fi
+
+    if [ ! -e "${MNT}" ]; then
+        mkdir "${MNT}"
+        if [ $? -ne 0 ]; then
+            echo "Could not create directory ${MNT}!" >&2
+            return 1
+        fi
+    fi
+    mount -thugetlbfs hugetlbfs "${MNT}" -o "${MNTOPTS}"
+    return $?
+}
+
+#
+# The DPDK library will use the first mounted instance it finds for a given
+# page size. so if there is already one for a given size there is no need to
+# create another for the same huge page size.
+#
+mount_hugetlbfs() {
+    if [ ! -r /etc/dpdk/dpdk.conf ]; then
+        return 1
+    fi
+    . /etc/dpdk/dpdk.conf
+
+    # if a page size is requested, there has to be a mountpoint for that size
+    if [ -n "${NR_2M_PAGES}" -a -z "$(get_hugetlbfs_mountpoint '2M')" ]; then
+        _mount_hugetlbfs 2M
+    fi
+    if [ -n "${NR_1G_PAGES}" -a -z "$(get_hugetlbfs_mountpoint '1G')" ]; then
+        _mount_hugetlbfs 1G
+    fi
+}
+
+_setup_hugepages() {
+    MMDIR="/sys/kernel/mm/hugepages/${1}"
+    PAGES=${2}
+
+    if [ "$PAGES" != "" ]; then
+        if [ "$PAGES" -gt 0 ]; then
+            if [ -d "$MMDIR" -a -w "$MMDIR/nr_hugepages" ]; then
+                # increases the chance to allocate enough huge pages
+                # configurable, since it comes at a perf penality
+                if [ "$DROPCACHE_BEFORE_HP_ALLOC" = "1" ]; then
+                    echo 3 > /proc/sys/vm/drop_caches
+                fi
+
+                echo "$PAGES" > "$MMDIR/nr_hugepages"
+
+                GOTPAGES=$(cat "$MMDIR/nr_hugepages")
+                if [ "$GOTPAGES" -lt "$PAGES" ]; then
+                    echo "WARNING: could not allocate $PAGES at " \
+                         "$MMDIR/nr_hugepages (only got $GOTPAGES)."
+                fi
+            else
+                echo "WARNING: $MMDIR/nr_hugepages not found/writable"
+            fi
+        fi
+    fi
+}
+
+#
+# Reserve a certain amount of hugepages (defined in /etc/dpdk.conf)
+#
+setup_hugepages() {
+    if [ ! -r /etc/dpdk/dpdk.conf ]; then
+        return 1
+    fi
+    . /etc/dpdk/dpdk.conf
+
+    _setup_hugepages "hugepages-2048kB" "$NR_2M_PAGES"
+    _setup_hugepages "hugepages-1048576kB" "$NR_1G_PAGES"
+
+    # dpdk uses 2*#hugepages mappings, increase for huge systems LP #1507921
+    if [ -d /sys/kernel/mm/hugepages ]; then
+        max_map_count=$(awk -v pad=65530 '{tot+=$1}END{print tot*2+pad}' \
+            /sys/kernel/mm/hugepages/hugepages-*/nr_hugepages)
+        sysctl -q vm.max_map_count="${max_map_count:-65530}"
+    fi
+
+    return 0
+}
+
+#
+# Allow NICs to be automatically bound to DPDK compatible drivers on boot.
+#
+bind_interfaces() {
+    if [ ! -r "$DPDK_INTERF" ]; then
+        return 0
+    fi
+    grep -v '^[ \t]*#' "$DPDK_INTERF" | while read BUS ID MOD; do
+        if [ "$BUS" = "" -o "$ID" = "" -o "$MOD" = "" ]; then
+            echo "WARNING: incomplete spec in $DPDK_INTERF" \
+                " - BUS '$BUS' ID '$ID' MOD '$MOD'"
+            continue
+        fi
+        if [ "$BUS" != "pci" ]; then
+            echo "WARNING: incompatible bus '$BUS' in $DPDK_INTERF"
+            continue
+        fi
+
+        SYSFSPATH="/sys/bus/$BUS/devices/$ID"
+        if [ ! -e "$SYSFSPATH" ]; then
+            echo "WARNING: invalid pci ID '$ID' in $DPDK_INTERF" \
+                " - '$SYSFSPATH' does not exist"
+            continue
+        fi
+        if [ -L "$SYSFSPATH/driver" ]; then
+            CUR=$(readlink "$SYSFSPATH/driver")
+            CUR=$(basename "$CUR")
+        else
+            # device existing, but currently unregistered
+            CUR=""
+        fi
+        if [ "$MOD" != "$CUR" ]; then
+            modprobe -q "$MOD" || true
+            # cloud img have no linux-image-extra initially (uip_pci_generic)
+            # so check if the module is available (loadable/built in)
+            if [ -e "/sys/bus/pci/drivers/${MOD}" ]; then
+                echo "Reassigning pci:$ID to $MOD"
+                $DPDK_BIND -b "$MOD" "$ID"
+            else
+                echo "Warning: failed assigning pci:$ID," \
+                     " module $MOD not available"
+            fi
+        else
+            echo "pci:$ID already assigned to $MOD"
+        fi
+    done
+}
+
+
+
+case "$1" in
+start)
+    mount_hugetlbfs
+    setup_hugepages
+    bind_interfaces
+    ;;
+stop)
+    ;;
+reload|force-reload)
+    setup_hugepages
+    bind_interfaces
+    ;;
+status)
+    $DPDK_BIND --status
+    ;;
+*)
+    echo "Usage: $0 {start|stop|reload|force-reload|status}"
+    exit 1
+    ;;
+esac
+
