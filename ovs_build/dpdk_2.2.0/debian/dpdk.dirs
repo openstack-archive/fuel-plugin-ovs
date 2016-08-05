@@ -1,0 +1,5 @@
+etc/dpdk
+lib/dpdk
+sbin
+usr/bin
+usr/lib/dpdk

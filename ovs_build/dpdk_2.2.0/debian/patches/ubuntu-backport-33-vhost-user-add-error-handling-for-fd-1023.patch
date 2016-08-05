@@ -1,0 +1,141 @@
+Description: backport of dpdk fix for LP: #1566874
+
+Forwarded: n/a (already discussed upstream)
+Author: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+Last-Update: 2016-04-11
+
+Extended by Christian Ehrhardt <christian.ehrhardt@canonical.com>
+Close fd on vserver->listenfd (Part of the upstream discussion)
+
+Original:
+From: Patrik Andersson <patrik.r.andersson@ericsson.com>
+
+Protect against DPDK crash when allocation of listen fd >= 1023.
+For events on fd:s >1023, the current implementation will trigger
+an abort due to access outside of allocated bit mask.
+
+Corrections would include:
+
+  * Match fdset_add() signature in fd_man.c to fd_man.h
+  * Handling of return codes from fdset_add()
+  * Addition of check of fd number in fdset_add_fd()
+
+The rationale behind the suggested code change is that,
+fdset_event_dispatch() could attempt access outside of the FD_SET
+bitmask if there is an event on a file descriptor that in turn
+looks up a virtio file descriptor with a value > 1023.
+Such an attempt will lead to an abort() and a restart of any
+vswitch using DPDK.
+
+A discussion topic exist in the ovs-discuss mailing list that can
+provide a little more background:
+
+http://openvswitch.org/pipermail/discuss/2016-February/020243.html
+
+Signed-off-by: Patrik Andersson <patrik.r.andersson@ericsson.com>
+---
+ fd_man.c         |   11 ++++++-----
+ vhost-net-user.c |   23 +++++++++++++++++++++--
+ 2 files changed, 27 insertions(+), 7 deletions(-)
+
+Index: dpdk/lib/librte_vhost/vhost_user/fd_man.c
+===================================================================
+--- dpdk.orig/lib/librte_vhost/vhost_user/fd_man.c
++++ dpdk/lib/librte_vhost/vhost_user/fd_man.c
+@@ -71,20 +71,22 @@ fdset_find_free_slot(struct fdset *pfdse
+ 	return fdset_find_fd(pfdset, -1);
+ }
+ 
+-static void
++static int
+ fdset_add_fd(struct fdset  *pfdset, int idx, int fd,
+ 	fd_cb rcb, fd_cb wcb, void *dat)
+ {
+ 	struct fdentry *pfdentry;
+ 
+-	if (pfdset == NULL || idx >= MAX_FDS)
+-		return;
++	if (pfdset == NULL || idx >= MAX_FDS || fd >= FD_SETSIZE)
++		return -1;
+ 
+ 	pfdentry = &pfdset->fd[idx];
+ 	pfdentry->fd = fd;
+ 	pfdentry->rcb = rcb;
+ 	pfdentry->wcb = wcb;
+ 	pfdentry->dat = dat;
++
++	return 0;
+ }
+ 
+ /**
+@@ -150,12 +152,11 @@ fdset_add(struct fdset *pfdset, int fd,
+ 
+ 	/* Find a free slot in the list. */
+ 	i = fdset_find_free_slot(pfdset);
+-	if (i == -1) {
++	if (i == -1 || fdset_add_fd(pfdset, i, fd, rcb, wcb, dat) < 0) {
+ 		pthread_mutex_unlock(&pfdset->fd_mutex);
+ 		return -2;
+ 	}
+ 
+-	fdset_add_fd(pfdset, i, fd, rcb, wcb, dat);
+ 	pfdset->num++;
+ 
+ 	pthread_mutex_unlock(&pfdset->fd_mutex);
+Index: dpdk/lib/librte_vhost/vhost_user/vhost-net-user.c
+===================================================================
+--- dpdk.orig/lib/librte_vhost/vhost_user/vhost-net-user.c
++++ dpdk/lib/librte_vhost/vhost_user/vhost-net-user.c
+@@ -288,6 +288,7 @@ vserver_new_vq_conn(int fd, void *dat, _
+ 	int fh;
+ 	struct vhost_device_ctx vdev_ctx = { (pid_t)0, 0 };
+ 	unsigned int size;
++	int ret;
+ 
+ 	conn_fd = accept(fd, NULL, NULL);
+ 	RTE_LOG(INFO, VHOST_CONFIG,
+@@ -317,8 +318,15 @@ vserver_new_vq_conn(int fd, void *dat, _
+ 
+ 	ctx->vserver = vserver;
+ 	ctx->fh = fh;
+-	fdset_add(&g_vhost_server.fdset,
++	ret = fdset_add(&g_vhost_server.fdset,
+ 		conn_fd, vserver_message_handler, NULL, ctx);
++	if (ret < 0) {
++		free(ctx);
++		close(conn_fd);
++		RTE_LOG(ERR, VHOST_CONFIG,
++				"failed to add fd %d into vhost server fdset\n",
++				conn_fd);
++	}
+ }
+ 
+ /* callback when there is message on the connfd */
+@@ -447,6 +455,7 @@ int
+ rte_vhost_driver_register(const char *path)
+ {
+ 	struct vhost_server *vserver;
++	int ret;
+ 
+ 	pthread_mutex_lock(&g_vhost_server.server_mutex);
+ 	if (ops == NULL)
+@@ -474,8 +483,18 @@ rte_vhost_driver_register(const char *pa
+ 
+ 	vserver->path = strdup(path);
+ 
+-	fdset_add(&g_vhost_server.fdset, vserver->listenfd,
++	ret = fdset_add(&g_vhost_server.fdset, vserver->listenfd,
+ 		vserver_new_vq_conn, NULL, vserver);
++	if (ret < 0) {
++		pthread_mutex_unlock(&g_vhost_server.server_mutex);
++		RTE_LOG(ERR, VHOST_CONFIG,
++				"failed to add listen fd %d to vhost server fdset\n",
++				vserver->listenfd);
++		close(vserver->listenfd);
++		free(vserver->path);
++		free(vserver);
++		return -1;
++	}
+ 
+ 	g_vhost_server.server[g_vhost_server.vserver_cnt++] = vserver;
+ 	pthread_mutex_unlock(&g_vhost_server.server_mutex);

@@ -1,0 +1,54 @@
+Description: backport of dpdk 16.04-rc fix for LP: #1568838
+
+Forwarded: n/a (already upstream)
+Author: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+Last-Update: 2016-04-12
+
+From 356445f97a28b66bce9e7300e21fdcfa7def55c9 Mon Sep 17 00:00:00 2001
+From: Jasvinder Singh <jasvinder.singh@intel.com>
+Date: Mon, 11 Apr 2016 18:55:37 +0100
+Subject: [PATCH] port: fix ring writer buffer overflow
+
+Fixes the buffer overflow that occurs due to following;
+
+1. When the input packet burst does not meet the conditions: (a) being
+contiguous (first n bits set in pkts_mask, all the other bits cleared)
+and (b) containing a full burst, i.e. at least tx_burst_sz packets
+(n >= tx_burst_size). This is the slow(er) code path taken when local
+variable expr != 0.
+2. There are some packets already in the buffer.
+3. The number of packets in the incoming burst (i.e. popcount(pkts_mask))
+plus the number of packets already in the buffer exceeds the buffer size
+(RTE_PORT_IN_BURST_SIZE_MAX, i.e. 64).
+
+Fixes: bf6931b242f7 ("port: ring")
+Fixes: 5f4cd47309d6 ("port: add ring writer nodrop")
+
+Signed-off-by: Jasvinder Singh <jasvinder.singh@intel.com>
+Acked-by: Cristian Dumitrescu <cristian.dumitrescu@intel.com>
+---
+ lib/librte_port/rte_port_ring.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+Index: dpdk/lib/librte_port/rte_port_ring.c
+===================================================================
+--- dpdk.orig/lib/librte_port/rte_port_ring.c
++++ dpdk/lib/librte_port/rte_port_ring.c
+@@ -179,7 +179,7 @@ rte_port_ring_reader_stats_read(void *po
+ struct rte_port_ring_writer {
+ 	struct rte_port_out_stats stats;
+ 
+-	struct rte_mbuf *tx_buf[RTE_PORT_IN_BURST_SIZE_MAX];
++	struct rte_mbuf *tx_buf[2 * RTE_PORT_IN_BURST_SIZE_MAX];
+ 	struct rte_ring *ring;
+ 	uint32_t tx_burst_sz;
+ 	uint32_t tx_buf_count;
+@@ -447,7 +447,7 @@ rte_port_ring_writer_stats_read(void *po
+ struct rte_port_ring_writer_nodrop {
+ 	struct rte_port_out_stats stats;
+ 
+-	struct rte_mbuf *tx_buf[RTE_PORT_IN_BURST_SIZE_MAX];
++	struct rte_mbuf *tx_buf[2 * RTE_PORT_IN_BURST_SIZE_MAX];
+ 	struct rte_ring *ring;
+ 	uint32_t tx_burst_sz;
+ 	uint32_t tx_buf_count;

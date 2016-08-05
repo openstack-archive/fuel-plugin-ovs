@@ -1,0 +1,84 @@
+Description: backport of dpdk 16.04-rc fix for LP: #1568838
+
+Forwarded: n/a (already upstream)
+Author: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+Last-Update: 2016-04-12
+
+From 52f7a5aeb190427232ba0289ec156e91ae68d3e6 Mon Sep 17 00:00:00 2001
+From: Jasvinder Singh <jasvinder.singh@intel.com>
+Date: Mon, 11 Apr 2016 18:54:46 +0100
+Subject: [PATCH] port: fix burst size mask type
+
+Fixes the variable bsz_mask type from uint32_t to uint64_t
+
+Fixes: 4d97e8b565cc ("port: ethdev")
+Fixes: 304c8091e90a ("port: add ethdev writer nodrop")
+Fixes: 8dceb6aa6ecf ("port: hierarchical scheduler")
+Fixes: 3e5966837a09 ("port: new Tx burst implementation of ring writer")
+Fixes: 5f4cd47309d6 ("port: add ring writer nodrop")
+
+Signed-off-by: Jasvinder Singh <jasvinder.singh@intel.com>
+Acked-by: Cristian Dumitrescu <cristian.dumitrescu@intel.com>
+---
+ lib/librte_port/rte_port_ethdev.c | 4 ++--
+ lib/librte_port/rte_port_ring.c   | 4 ++--
+ lib/librte_port/rte_port_sched.c  | 2 +-
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+Index: dpdk/lib/librte_port/rte_port_ethdev.c
+===================================================================
+--- dpdk.orig/lib/librte_port/rte_port_ethdev.c
++++ dpdk/lib/librte_port/rte_port_ethdev.c
+@@ -229,7 +229,7 @@ rte_port_ethdev_writer_tx_bulk(void *por
+ {
+ 	struct rte_port_ethdev_writer *p =
+ 		(struct rte_port_ethdev_writer *) port;
+-	uint32_t bsz_mask = p->bsz_mask;
++	uint64_t bsz_mask = p->bsz_mask;
+ 	uint32_t tx_buf_count = p->tx_buf_count;
+ 	uint64_t expr = (pkts_mask & (pkts_mask + 1)) |
+ 			((pkts_mask & bsz_mask) ^ bsz_mask);
+@@ -436,7 +436,7 @@ rte_port_ethdev_writer_nodrop_tx_bulk(vo
+ 	struct rte_port_ethdev_writer_nodrop *p =
+ 		(struct rte_port_ethdev_writer_nodrop *) port;
+ 
+-	uint32_t bsz_mask = p->bsz_mask;
++	uint64_t bsz_mask = p->bsz_mask;
+ 	uint32_t tx_buf_count = p->tx_buf_count;
+ 	uint64_t expr = (pkts_mask & (pkts_mask + 1)) |
+ 			((pkts_mask & bsz_mask) ^ bsz_mask);
+Index: dpdk/lib/librte_port/rte_port_ring.c
+===================================================================
+--- dpdk.orig/lib/librte_port/rte_port_ring.c
++++ dpdk/lib/librte_port/rte_port_ring.c
+@@ -300,7 +300,7 @@ rte_port_ring_writer_tx_bulk_internal(vo
+ 	struct rte_port_ring_writer *p =
+ 		(struct rte_port_ring_writer *) port;
+ 
+-	uint32_t bsz_mask = p->bsz_mask;
++	uint64_t bsz_mask = p->bsz_mask;
+ 	uint32_t tx_buf_count = p->tx_buf_count;
+ 	uint64_t expr = (pkts_mask & (pkts_mask + 1)) |
+ 			((pkts_mask & bsz_mask) ^ bsz_mask);
+@@ -614,7 +614,7 @@ rte_port_ring_writer_nodrop_tx_bulk_inte
+ 	struct rte_port_ring_writer_nodrop *p =
+ 		(struct rte_port_ring_writer_nodrop *) port;
+ 
+-	uint32_t bsz_mask = p->bsz_mask;
++	uint64_t bsz_mask = p->bsz_mask;
+ 	uint32_t tx_buf_count = p->tx_buf_count;
+ 	uint64_t expr = (pkts_mask & (pkts_mask + 1)) |
+ 			((pkts_mask & bsz_mask) ^ bsz_mask);
+Index: dpdk/lib/librte_port/rte_port_sched.c
+===================================================================
+--- dpdk.orig/lib/librte_port/rte_port_sched.c
++++ dpdk/lib/librte_port/rte_port_sched.c
+@@ -214,7 +214,7 @@ rte_port_sched_writer_tx_bulk(void *port
+ 		uint64_t pkts_mask)
+ {
+ 	struct rte_port_sched_writer *p = (struct rte_port_sched_writer *) port;
+-	uint32_t bsz_mask = p->bsz_mask;
++	uint64_t bsz_mask = p->bsz_mask;
+ 	uint32_t tx_buf_count = p->tx_buf_count;
+ 	uint64_t expr = (pkts_mask & (pkts_mask + 1)) |
+ 			((pkts_mask & bsz_mask) ^ bsz_mask);
