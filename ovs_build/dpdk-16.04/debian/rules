@@ -33,15 +33,6 @@ clean:
 build-config:
 	dh_testdir
 	$(MAKE) O=$(DPDK_STATIC_DIR) T=$(DPDK_CONFIG) config
-	sed -ri -e 's,(RTE_MACHINE=).*,\1"default",' \
-	        -e 's,(RTE_NEXT_ABI=).*,\1n,' \
-	        -e 's,(RTE_APP_TEST=).*,\1n,' \
-	        -e 's,(CONFIG_RTE_EAL_IGB_UIO=).*,\1n,' \
-	        -e 's,(CONFIG_RTE_KNI_KMOD=).*,\1n,' \
-	        -e 's,(CONFIG_RTE_BUILD_COMBINE_LIBS=).*,\1y,' \
-	        -e 's,(LIBRTE_PMD_PCAP=).*,\1y,' \
-	        -e 's,(LIBRTE_PMD_XENVIRT=).*,\1y,' \
-	        $(DPDK_STATIC_DIR)/.config
 
 build-indep: build-config
 	dh_testdir
@@ -127,7 +118,7 @@ binary-arch:
 	# NOTE: linker script - this becomes a nop (linker skript has no sover
 	# on its own)
 	rm debian/dpdk/usr/lib/libdpdk.so
-	cp $(DPDK_SHARED_DIR)/lib/libdpdk.so.0 debian/libdpdk0/$(LIBDIR)/
+	cp -a $(DPDK_SHARED_DIR)/lib/* debian/libdpdk0/$(LIBDIR)/
 	# NOTE: linker script - insert basenames loop for all .so's
 	# NOTE: linker script - we also will need multiple symbol files then
 	# Package: dpdk-dev (build environment)
@@ -135,11 +126,11 @@ binary-arch:
 		DESTDIR=debian/dpdk-dev install-sdk
 	cp $(DPDK_SHARED_DIR)/.config debian/dpdk-dev/usr/share/dpdk/config
 	# Package: libdpdk-dev (bare headers and static devel libs)
-	mkdir -p debian/libdpdk-dev/$(LIBDIR)
+	mkdir -p debian/libdpdk-dev/usr/lib/
 	# NOTE: linker script - insert basenames loop for all .a's
-	ln -s /$(LIBDIR)/libdpdk.so.0 \
-		debian/libdpdk-dev/$(LIBDIR)/libdpdk.so
-	mv debian/dpdk/usr/lib/libdpdk.a debian/libdpdk-dev/$(LIBDIR)/
+	#ln -s /$(LIBDIR)/libdpdk.so \
+	#    debian/libdpdk-dev/$(LIBDIR)/libdpdk.so.0
+	cp -a $(DPDK_STATIC_DIR)/lib/* debian/libdpdk-dev/usr/lib/
 	mv debian/dpdk-dev/usr/include/dpdk debian/libdpdk-dev/usr/include/
 	# NOTE: linker script - package instead of removing all sublibs
 	rm -rf debian/dpdk/usr/lib*
