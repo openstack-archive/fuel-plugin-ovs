@@ -1,0 +1,3 @@
+openvswitch-dpdk (2.5.90-1) unstable; urgency=low
+  * New upstream version
+ -- Open vSwitch team <dev@openvswitch.org>
