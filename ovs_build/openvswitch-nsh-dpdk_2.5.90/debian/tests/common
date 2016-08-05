@@ -1,0 +1,23 @@
+#!/bin/sh
+
+set -e
+
+update-alternatives --set ovs-vswitchd \
+    /usr/lib/openvswitch-switch-dpdk/ovs-vswitchd-dpdk
+service openvswitch-switch restart
+
+modprobe openvswitch || true
+
+echo "kernel modules loaded: "
+# Check that ovs loaded
+lsmod | grep "openvswitch"
+echo "OK"
+
+echo "Checking daemons: "
+pgrep ovs-vswitchd
+pgrep ovsdb-server
+echo "OK"
+
+echo -n "running openflow tests using mininet"
+python `dirname $0`/openflow.py 2>&1
+echo "OK"

@@ -1,0 +1,15 @@
+--- a/utilities/ovs-ctl.in
++++ b/utilities/ovs-ctl.in
+@@ -253,7 +253,11 @@ start_forwarding () {
+         fi
+ 
+ 	    # Start ovs-vswitchd.
+-	    set ovs-vswitchd unix:"$DB_SOCK"
++	    set ovs-vswitchd
++		if test X"$DPDK_OPTS" != X; then
++			set "$@" $DPDK_OPTS --
++		fi
++		set "$@" unix:"$DB_SOCK"
+ 	    set "$@" -vconsole:emer -vsyslog:err -vfile:info
+ 	    if test X"$MLOCKALL" != Xno; then
+ 	        set "$@" --mlockall

@@ -1,0 +1,3 @@
+openvswitch-dpdk (2.5.90-1.nsh) unstable; urgency=low
+  * Support NSH
+ -- Open vSwitch team <dev@openvswitch.org>

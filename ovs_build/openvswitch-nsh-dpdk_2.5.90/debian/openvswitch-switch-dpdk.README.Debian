@@ -1,0 +1,42 @@
+openvswitch-switch-dpdk
+-----------------------
+
+This package provides a DPDK enabled version of the OpenvSwitch vswitchd
+binary; by default, the ovs-vswitchd binary from openvswitch-switch will
+be used:
+
+  $ update-alternatives --query ovs-vswitchd
+  Name: ovs-vswitchd
+  Link: /usr/sbin/ovs-vswitchd
+  Status: auto
+  Best: /usr/lib/openvswitch-switch/ovs-vswitchd
+  Value: /usr/lib/openvswitch-switch/ovs-vswitchd
+
+  Alternative: /usr/lib/openvswitch-switch-dpdk/ovs-vswitchd-dpdk
+  Priority: 50
+
+  Alternative: /usr/lib/openvswitch-switch/ovs-vswitchd
+  Priority: 100
+
+DPDK provides fast packet processing in userspace, and has some specific
+requirements in terms of system configuration - see the upstream
+documentation for more details:
+
+  /usr/share/doc/openvswitch-common/INSTALL.DPDK.md.gz
+
+DPDK has a minimum CPU feature set of SSE3, so is not appropriate for all
+amd64 CPU types hence is not enabled by default.
+
+To switch to the DPDK version:
+
+   sudo update-alternatives --set ovs-vswitchd \
+        /usr/lib/openvswitch-switch-dpdk/ovs-vswitchd-dpdk
+   sudo service openvswitch-switch restart
+
+and to switch back:
+
+   sudo update-alternatives --set ovs-vswitchd \
+        /usr/lib/openvswitch-switch/ovs-vswitchd
+   sudo service openvswitch-switch restart
+
+ -- James Page <james.page@ubuntu.com>  Tue, 21 Jul 2015 12:06:49 +0100

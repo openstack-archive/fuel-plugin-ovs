@@ -1,0 +1,4 @@
+Tests: kernel
+Depends: mininet (>= 2.2.0~), iperf, openvswitch-switch-dpdk,
+ openvswitch-testcontroller
+Restrictions: needs-root rw-build-tree

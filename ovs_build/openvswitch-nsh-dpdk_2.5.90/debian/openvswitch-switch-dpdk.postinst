@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -e
+
+update-alternatives --install /usr/sbin/ovs-vswitchd ovs-vswitchd \
+    /usr/lib/openvswitch-switch-dpdk/ovs-vswitchd-dpdk 50
+
+#DEBHELPER#
+
+exit 0
