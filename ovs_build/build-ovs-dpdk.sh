@@ -4,24 +4,21 @@ set -eux
 
 OVS_COMMIT=7d8eadce4df70f563a0c0123c612f6117c8ff864
 URL_OVS=https://github.com/openvswitch/ovs.git
-OVS_VER=${OVS_VER:-2.5.90}
-BUILD_HOME=$HOME/dpdk
-BUILD_DEST=${BUILD_DEST:-/deb}
+BUILD_DEB=${BUILD_DEB:-/deb}
+BUILD_SRC="$(dirname `readlink -f $0`)"
+BUILD_DEST=${BUILD_DEST:-/tmp/ovs-dpdk}
 
 export DEB_BUILD_OPTIONS='parallel=8 nocheck'
 
-sudo apt-get build-dep openvswitch -y
 sudo apt-get -y install devscripts dpkg-dev git wget
 
-rm -rf ${BUILD_HOME}; mkdir -p ${BUILD_HOME}
-cp `dirname $0`/rules ${BUILD_HOME}
+rm -rf ${BUILD_DEST}; mkdir -p ${BUILD_DEST}
 
-cd ${BUILD_HOME}
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/dpdk_2.2.0-0ubuntu8.dsc
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/dpdk_2.2.0.orig.tar.gz
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/dpdk_2.2.0-0ubuntu8.debian.tar.xz
-dpkg-source -x dpdk_2.2.0-0ubuntu8.dsc
+cd ${BUILD_DEST}
 wget -c http://fast.dpdk.org/rel/dpdk-16.04.tar.xz
+xz -d dpdk-16.04.tar.xz; tar xvf dpdk-16.04.tar
+cd dpdk-16.04
+cp -r ${BUILD_SRC}/dpdk_16.04/debian .
 
 # copy from debian/control
 sudo apt-get install -y debhelper \
@@ -38,26 +35,13 @@ sudo apt-get install -y debhelper \
                python-sphinx  \
                texlive-fonts-recommended  \
                texlive-latex-extra
-
-cd dpdk-2.2.0; rm -rf debian/patches/; uupdate -v 16.04 ../dpdk-16.04.tar.xz
-cd ${BUILD_HOME}/dpdk-16.04
-cat << EOF > debian/changelog
-dpdk (16.04-1) unstable; urgency=low
-  * DPDK 16.04
- -- DPDK team <dev@dpdk.org>
-EOF
-mv debian/rules debian/rules.orig
-cp ${BUILD_HOME}/rules debian/rules
 debian/rules build; fakeroot debian/rules binary
-cd ${BUILD_HOME}; sudo dpkg -i *.deb
+
+cd ${BUILD_DEST}
+sudo dpkg -i *.deb
 apt-get download libxenstore3.0
 
-cd ${BUILD_HOME}
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/openvswitch-dpdk_2.4.0.orig.tar.gz
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/openvswitch-dpdk_2.4.0-0ubuntu1.dsc
-wget -c https://launchpad.net/ubuntu/+archive/primary/+files/openvswitch-dpdk_2.4.0-0ubuntu1.debian.tar.xz
-dpkg-source -x openvswitch-dpdk_2.4.0-0ubuntu1.dsc
-
+sudo apt-get build-dep openvswitch -y
 # copy from debian/control
 sudo apt-get install -y autoconf \
                automake \
@@ -79,22 +63,15 @@ sudo apt-get install -y autoconf \
                python-six
 
 git clone https://github.com/openvswitch/ovs.git
-cd ovs; git checkout ${OVS_COMMIT}
-cd ${BUILD_HOME}; tar czvf ovs.tar.gz ovs
-rm -rf openvswitch-dpdk-${OVS_VER}*
-cd openvswitch-dpdk-2.4.0; uupdate -v ${OVS_VER} ../ovs.tar.gz
-cd ../openvswitch-dpdk-${OVS_VER}
-#sed -i 's~DPDK_LIB_DIR=.*~DPDK_LIB_DIR="$with_dpdk/x86_64-linux-gnu/lib"~'  acinclude.m4
-autoreconf --install
-rm -rf debian/patches/ .git;
-cat << EOF > debian/changelog
-openvswitch-dpdk (${OVS_VER}-1) unstable; urgency=low
-  * New upstream version
- -- Open vSwitch team <dev@openvswitch.org>
-EOF
+cd ovs; git checkout ${OVS_COMMIT}; rm -rf .git
+cd ${BUILD_DEST}; cp -r ovs ovs-dpdk
+
+cd ovs-dpdk
+cp -r ${BUILD_SRC}/openvswitch-dpdk_2.5.90/debian .
 debian/rules build; fakeroot debian/rules binary
 
-cd ${BUILD_HOME}/ovs
+cd ${BUILD_DEST}/ovs
 debian/rules build; fakeroot debian/rules binary
 
-cp ${BUILD_HOME}/*.deb ${BUILD_DEST}
+cp -r ${BUILD_DEST}/*.deb ${BUILD_DEB}
+rm -rf ${BUILD_DEST}
