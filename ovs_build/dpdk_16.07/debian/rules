@@ -101,7 +101,7 @@ binary-arch:
 	$(MAKE) O=$(DPDK_SHARED_DIR) prefix=/usr \
 		DESTDIR=debian/dpdk install-runtime
 	cp debian/dpdk.interfaces debian/dpdk/etc/dpdk/interfaces
-	rm debian/dpdk/usr/sbin/dpdk_nic_bind
+	#rm debian/dpdk/usr/sbin/dpdk_nic_bind
 	ln -s /usr/share/dpdk/tools/dpdk_nic_bind.py \
 		debian/dpdk/sbin/dpdk_nic_bind
 	# Package: libdpdk0 (bare runtime libs)
