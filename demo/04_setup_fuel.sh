@@ -25,6 +25,7 @@ then
     sudo ifconfig br-dpdk down
     sudo brctl delbr br-dpdk
     sudo brctl addbr br-dpdk
+    sudo ifconfig br-dpdk up
 fi
 
 sudo iptables -t nat -D PREROUTING  -j PRE_FUEL
