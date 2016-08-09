@@ -1,6 +1,7 @@
 #!/bin/bash
 
 DNS_SERVER=${DNS_SERVER:-10.248.2.1}
+SUPPORT_DPDK=${SUPPORT_DPDK:-false}
 
 #setup ntp server
 sudo service ntp restart
@@ -17,9 +18,12 @@ sudo brctl delbr br-eth1
 sudo brctl addbr br-eth1
 sudo ifconfig br-eth1 172.16.0.1/24 up
 
-sudo ifconfig br-dpdk down
-sudo brctl delbr br-dpdk
-sudo brctl addbr br-dpdk
+if [ $SUPPORT_DPDK = 'true' ]
+then
+    sudo ifconfig br-dpdk down
+    sudo brctl delbr br-dpdk
+    sudo brctl addbr br-dpdk
+fi
 
 sudo iptables -t nat -D PREROUTING  -j PRE_FUEL
 sudo iptables -t nat -N PRE_FUEL
@@ -74,13 +78,19 @@ do
    sleep 20
 done
 
+if [ $SUPPORT_DPDK = 'true' ]
+then
+    fuel_slave='fuel-slave-dpdk'
+else
+    fuel_slave='fuel-slave'
+fi
 #setup slave
 for i in {1..4}; do
     sudo virsh destroy fuel-slave-$i
-    sudo rm -rf /var/lib/libvirt/images/fuel-slave-${i}.img
-    sudo qemu-img create -f qcow2 /var/lib/libvirt/images/fuel-slave-${i}.img 200G
-    sed "s/FUEL_SLAVE/fuel-slave-$i/g" fuel-slave.xml > vms/fuel-slave-${i}.xml
-    sudo virsh create vms/fuel-slave-${i}.xml
+    sudo rm -rf /var/lib/libvirt/images/$fuel_slave-${i}.img
+    sudo qemu-img create -f qcow2 /var/lib/libvirt/images/$fuel_slave-${i}.img 200G
+    sed "s/FUEL_SLAVE/fuel-slave-$i/g" $fuel_slave.xml > vms/$fuel_slave-${i}.xml
+    sudo virsh create vms/$fuel_slave-${i}.xml
 done
 
 #setup web browser
