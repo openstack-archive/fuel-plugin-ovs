@@ -2,7 +2,7 @@
 
 set -eux
 
-OVS_COMMIT=7d8eadce4df70f563a0c0123c612f6117c8ff864
+OVS_COMMIT=9f4ecd654dbcb88b15a424445184591fc887537e
 URL_OVS=https://github.com/openvswitch/ovs.git
 BUILD_DEB=${BUILD_DEB:-/deb}
 BUILD_SRC="$(dirname `readlink -f $0`)"
@@ -15,10 +15,10 @@ sudo apt-get -y install devscripts dpkg-dev git wget
 rm -rf ${BUILD_DEST}; mkdir -p ${BUILD_DEST}
 
 cd ${BUILD_DEST}
-wget -c http://fast.dpdk.org/rel/dpdk-16.04.tar.xz
-xz -d dpdk-16.04.tar.xz; tar xvf dpdk-16.04.tar
-cd dpdk-16.04
-cp -r ${BUILD_SRC}/dpdk_16.04/debian .
+wget -c http://fast.dpdk.org/rel/dpdk-16.07.tar.xz
+xz -d dpdk-16.07.tar.xz; tar xvf dpdk-16.07.tar
+cd dpdk-16.07
+cp -r ${BUILD_SRC}/dpdk_16.07/debian .
 
 # copy from debian/control
 sudo apt-get install -y debhelper \

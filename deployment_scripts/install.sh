@@ -33,8 +33,8 @@ else
     if [ $dpdk = 'true' ]
     then
         dpkg -i libxenstore3.0*.deb
-        dpkg -i libdpdk0_16.04-1_amd64.deb
-        dpkg -i dpdk_16.04-1_amd64.deb
+        dpkg -i libdpdk0_16.07-1_amd64.deb
+        dpkg -i dpdk_16.07-1_amd64.deb
         dpkg -i openvswitch-switch-dpdk_2.5.90-1_amd64.deb
     fi
 fi
