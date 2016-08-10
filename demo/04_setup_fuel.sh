@@ -3,6 +3,8 @@
 DNS_SERVER=${DNS_SERVER:-10.248.2.1}
 SUPPORT_DPDK=${SUPPORT_DPDK:-false}
 
+ls *.iso &> /dev/null || (echo "pls download fuel iso here" && exit 0)
+
 #setup ntp server
 sudo service ntp restart
 
@@ -80,17 +82,17 @@ done
 
 if [ $SUPPORT_DPDK = 'true' ]
 then
-    fuel_slave='fuel-slave-dpdk'
+    fuel_slave_xml='fuel-slave-dpdk.xml'
 else
-    fuel_slave='fuel-slave'
+    fuel_slave_xml='fuel-slave.xml'
 fi
 #setup slave
 for i in {1..4}; do
     sudo virsh destroy fuel-slave-$i
-    sudo rm -rf /var/lib/libvirt/images/$fuel_slave-${i}.img
-    sudo qemu-img create -f qcow2 /var/lib/libvirt/images/$fuel_slave-${i}.img 200G
-    sed "s/FUEL_SLAVE/fuel-slave-$i/g" $fuel_slave.xml > vms/$fuel_slave-${i}.xml
-    sudo virsh create vms/$fuel_slave-${i}.xml
+    sudo rm -rf /var/lib/libvirt/images/fuel-slave-${i}.img
+    sudo qemu-img create -f qcow2 /var/lib/libvirt/images/fuel-slave-${i}.img 200G
+    sed "s/FUEL_SLAVE/fuel-slave-$i/g" $fuel_slave_xml > vms/fuel-slave-${i}.xml
+    sudo virsh create vms/fuel-slave-${i}.xml
 done
 
 #setup web browser

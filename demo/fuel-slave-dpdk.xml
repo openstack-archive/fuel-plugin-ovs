@@ -31,6 +31,7 @@
     <feature policy='require' name='ssse3'/>
     <feature policy='require' name='sse4.1'/>
     <feature policy='require' name='sse4.2'/>
+    <feature policy='require' name='vmx'/>
   </cpu>
   <clock offset='utc'/>
   <on_poweroff>destroy</on_poweroff>
