@@ -36,5 +36,7 @@ else
         dpkg -i libdpdk0_16.07-1_amd64.deb
         dpkg -i dpdk_16.07-1_amd64.deb
         dpkg -i openvswitch-switch-dpdk_2.5.90-1_amd64.deb
+        ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true
+        service openvswitch-switch restart
     fi
 fi
