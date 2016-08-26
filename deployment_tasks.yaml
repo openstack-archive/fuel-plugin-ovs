@@ -1,9 +1,11 @@
 - id: ovs_install_compute
   type: puppet
-  version: 2.0.0
+  version: 2.1.0
   groups: [compute]
-  required_for: [pre_deployment_end]
-  requires: [pre_deployment_start]
+  requires: [allocate_hugepages]
+  required_for: [netconfig]
+  condition:
+    yaql_exp: changedAny($.get('fuel-plugin-ovs'), $.get('dpdk'))
   parameters:
     puppet_manifest: puppet/manifests/ovs-install-compute.pp
     puppet_modules: puppet/modules:/etc/puppet/modules

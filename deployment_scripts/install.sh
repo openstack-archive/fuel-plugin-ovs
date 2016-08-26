@@ -8,6 +8,7 @@ cd $INSTALL_HOME
 host=$1
 nsh=$2
 dpdk=$3
+dpdk_socket_mem=$4
 
 
 if [ $nsh = 'true' ]
@@ -36,7 +37,14 @@ else
         dpkg -i libdpdk0_16.07-1_amd64.deb
         dpkg -i dpdk_16.07-1_amd64.deb
         dpkg -i openvswitch-switch-dpdk_2.5.90-1_amd64.deb
+
+        dpdk_pages=$(($dpdk_socket_mem / 2))
+        sed "s/#*\(NR_2M_PAGES=\).*/\1${dpdk_pages}/" /tmp/dpdk.conf
+        service dpdk start
+
         ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true
+        [ -n $dpdk_socket_mem ] && vs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-socket-mem="$dpdk_socket_mem"
+
         service openvswitch-switch restart
     fi
 fi
