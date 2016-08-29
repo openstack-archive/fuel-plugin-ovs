@@ -8,3 +8,14 @@
     puppet_manifest: puppet/manifests/ovs-install-compute.pp
     puppet_modules: puppet/modules:/etc/puppet/modules
     timeout: 720
+
+- id: ovs_start_service
+  type: puppet
+  version: 2.0.0
+  groups: [compute]
+  requires: [netconfig]
+  required_for: [deployment_end]
+  parameters:
+    puppet_manifest: puppet/manifests/ovs-start-service.pp
+    puppet_modules: puppet/modules:/etc/puppet/modules
+    timeout: 60
