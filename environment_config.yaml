@@ -9,3 +9,8 @@ attributes:
       weight: 20
       value: false
       label: "Install NSH"
+    install_on_controller:
+      type: "checkbox"
+      weight: 20
+      value: false
+      label: "Install same OVS version on the Controller"
