@@ -39,7 +39,7 @@ else
         dpkg -i openvswitch-switch-dpdk_2.5.90-1_amd64.deb
 
         dpdk_pages=$(($dpdk_socket_mem / 2))
-        sed "s/#*\(NR_2M_PAGES=\).*/\1${dpdk_pages}/" /etc/dpdk/dpdk.conf
+        sed -i "s/[# ]*\(NR_2M_PAGES=\).*/\1${dpdk_pages}/" /etc/dpdk/dpdk.conf
         service dpdk start
 
         ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true
