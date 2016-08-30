@@ -1,3 +1,4 @@
+notice('MODULAR: ovs-install.pp')
 # get options
 $master_ip      = hiera('master_ip')
 $ovs_settings   = hiera('fuel-plugin-ovs')
