@@ -8,8 +8,9 @@ cd $INSTALL_HOME
 host=$1
 nsh=$2
 dpdk=$3
-dpdk_socket_mem=$4
-
+if [ $dpdk = 'true' ];then
+    dpdk_socket_mem=$4
+fi
 
 if [ $nsh = 'true' ]
 then
@@ -31,7 +32,7 @@ else
     dpkg -i openvswitch-common_2.5.90-1_amd64.deb
     dpkg -i openvswitch-switch_2.5.90-1_amd64.deb
     dpkg -i python-openvswitch_2.5.90-1_all.deb
-    if [ $dpdk = 'true' ]
+    if [ $dpdk = 'true' -a -n $dpdk_socket_mem ]
     then
         dpkg -i libxenstore3.0*.deb
         dpkg -i libdpdk0_16.07-1_amd64.deb
