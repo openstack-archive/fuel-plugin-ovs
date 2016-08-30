@@ -8,7 +8,10 @@ cd $INSTALL_HOME
 host=$1
 nsh=$2
 dpdk=$3
-dpdk_socket_mem=$4
+if [ $dpdk = 'true' ];then
+    dpdk_socket_mem=$4
+fi
+
 
 
 if [ $nsh = 'true' ]

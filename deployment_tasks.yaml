@@ -1,12 +1,12 @@
-- id: ovs_install_compute
+- id: ovs_install
   type: puppet
   version: 2.1.0
-  groups: [compute]
+  groups: [compute, primary-controller, controller]
   requires: [allocate_hugepages]
   required_for: [netconfig]
   condition:
     yaql_exp: changedAny($.get('fuel-plugin-ovs'), $.get('dpdk'))
   parameters:
-    puppet_manifest: puppet/manifests/ovs-install-compute.pp
+    puppet_manifest: puppet/manifests/ovs-install.pp
     puppet_modules: puppet/modules:/etc/puppet/modules
     timeout: 720
