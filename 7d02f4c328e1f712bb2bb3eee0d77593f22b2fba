@@ -1,0 +1,9 @@
+Code-Review+1: Billy O'Mahony <billy.omahony@gmail.com>
+Code-Review+2: Michal Skalski <mskalski@mirantis.com>
+Workflow+1: Michal Skalski <mskalski@mirantis.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 31 Aug 2016 13:02:46 +0000
+Reviewed-on: https://review.openstack.org/362769
+Project: openstack/fuel-plugin-ovs
+Branch: refs/heads/master
