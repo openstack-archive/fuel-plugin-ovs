@@ -8,7 +8,7 @@ cd $INSTALL_HOME
 host=$1
 nsh=$2
 dpdk=$3
-dpdk_socket_mem=$4
+dpdk_socket_mem=${4:-''}
 
 
 if [ $nsh = 'true' ]
@@ -31,7 +31,7 @@ else
     dpkg -i openvswitch-common_2.5.90-1_amd64.deb
     dpkg -i openvswitch-switch_2.5.90-1_amd64.deb
     dpkg -i python-openvswitch_2.5.90-1_all.deb
-    if [ $dpdk = 'true' ]
+    if [[ $dpdk = 'true' && -n $dpdk_socket_mem ]]
     then
         dpkg -i libxenstore3.0*.deb
         dpkg -i libdpdk0_16.07-1_amd64.deb
@@ -43,7 +43,7 @@ else
         service dpdk start
 
         ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true
-        [ -n $dpdk_socket_mem ] && ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-socket-mem="$dpdk_socket_mem"
+        ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-socket-mem="$dpdk_socket_mem"
 
         service openvswitch-switch restart
     fi
