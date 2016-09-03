@@ -10,7 +10,7 @@ BUILD_HOME=${BUILD_HOME:-/tmp/ovs-dpdk}
 
 export DEB_BUILD_OPTIONS='parallel=8 nocheck'
 
-sudo apt-get -y install devscripts dpkg-dev git wget dkms
+sudo apt-get -y --force-yes install devscripts dpkg-dev git wget dkms
 
 rm -rf ${BUILD_HOME}; mkdir -p ${BUILD_HOME}/deb
 
@@ -29,7 +29,7 @@ dpdk (16.07-0ubuntu5~u1604+fuel10) xenial; urgency=low
 EOF
 
 # copy from debian/control
-sudo apt-get install -y debhelper \
+sudo apt-get install -y --force-yes debhelper \
                dh-python \
                dh-systemd \
                doxygen  \
@@ -46,12 +46,12 @@ sudo apt-get install -y debhelper \
 debian/rules build; fakeroot debian/rules binary
 
 cd ${BUILD_HOME}
-sudo apt-get install -y hwdata
+sudo apt-get install -y --force-yes hwdata
 sudo dpkg -i *.deb
 mv *.deb ${BUILD_DEST}
 
 # copy from debian/control
-sudo apt-get install -y autoconf \
+sudo apt-get install -y --force-yes autoconf \
                automake \
                bzip2 \
                debhelper \
