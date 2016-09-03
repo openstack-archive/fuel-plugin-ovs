@@ -11,8 +11,8 @@ DIR="$(dirname `readlink -f $0`)"
 
 export DEB_BUILD_OPTIONS='parallel=8 nocheck'
 
-sudo apt-get build-dep openvswitch -y
-sudo apt-get -y install devscripts dpkg-dev wget
+sudo apt-get build-dep openvswitch -y --force-yes
+sudo apt-get -y --force-yes install devscripts dpkg-dev wget
 
 rm -rf ${BUILD_HOME}; mkdir -p ${BUILD_HOME}
 
@@ -20,7 +20,7 @@ cd ${BUILD_HOME}
 dget -x -u https://launchpad.net/ubuntu/+archive/primary/+files/dpdk_2.2.0-0ubuntu8.dsc
 
 # copy from debian/control
-sudo apt-get install -y debhelper \
+sudo apt-get install -y --force-yes debhelper \
                dh-python \
                dh-systemd \
                doxygen  \
@@ -49,7 +49,7 @@ cd ${BUILD_HOME}
 dget -x -u https://launchpad.net/ubuntu/+archive/primary/+files/openvswitch-dpdk_2.4.0-0ubuntu1.dsc
 
 # copy from debian/control
-sudo apt-get install -y autoconf \
+sudo apt-get install -y --force-yes autoconf \
                automake \
                bzip2 \
                debhelper \

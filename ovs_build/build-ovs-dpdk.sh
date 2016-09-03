@@ -10,7 +10,7 @@ BUILD_DEST=${BUILD_DEST:-/tmp/ovs-dpdk}
 
 export DEB_BUILD_OPTIONS='parallel=8 nocheck'
 
-sudo apt-get -y install devscripts dpkg-dev wget
+sudo apt-get -y --force-yes install devscripts dpkg-dev wget
 
 rm -rf ${BUILD_DEST}; mkdir -p ${BUILD_DEST}
 
@@ -21,7 +21,7 @@ cd dpdk-16.07
 cp -r ${BUILD_SRC}/dpdk_16.07/debian .
 
 # copy from debian/control
-sudo apt-get install -y debhelper \
+sudo apt-get install -y --force-yes debhelper \
                dh-python \
                dh-systemd \
                doxygen  \
@@ -41,9 +41,9 @@ cd ${BUILD_DEST}
 sudo dpkg -i *.deb
 apt-get download libxenstore3.0
 
-sudo apt-get build-dep openvswitch -y
+sudo apt-get build-dep openvswitch -y --force-yes
 # copy from debian/control
-sudo apt-get install -y autoconf \
+sudo apt-get install -y --force-yes autoconf \
                automake \
                bzip2 \
                debhelper \
