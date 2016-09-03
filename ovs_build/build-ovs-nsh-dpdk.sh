@@ -3,7 +3,7 @@
 set -eux
 
 OVS_COMMIT=7d433ae57ebb90cd68e8fa948a096f619ac4e2d8
-URL_OVS=https://github.com/openvswitch/ovs.git
+URL_OVS_ARCHIVE=https://github.com/openvswitch/ovs/archive
 OVS_VER=${OVS_VER:-2.5.90}
 BUILD_HOME=$HOME/nsh
 BUILD_DEST=${BUILD_DEST:-/deb}
@@ -12,7 +12,7 @@ DIR="$(dirname `readlink -f $0`)"
 export DEB_BUILD_OPTIONS='parallel=8 nocheck'
 
 sudo apt-get build-dep openvswitch -y
-sudo apt-get -y install devscripts dpkg-dev git wget
+sudo apt-get -y install devscripts dpkg-dev wget
 
 rm -rf ${BUILD_HOME}; mkdir -p ${BUILD_HOME}
 
@@ -35,7 +35,7 @@ sudo apt-get install -y debhelper \
                texlive-fonts-recommended  \
                texlive-latex-extra
 
-cd dpdk-2.2.0; rm -rf debian/patches/;
+cd dpdk-2.2.0; rm -rf debian/patches/
 cat << EOF > debian/changelog
 dpdk (2.2.0-1) unstable; urgency=low
   * DPDK 2.2.0
@@ -68,8 +68,8 @@ sudo apt-get install -y autoconf \
                python-zopeinterface \
                python-six
 
-git clone https://github.com/openvswitch/ovs.git
-cd ovs; git checkout ${OVS_COMMIT}
+wget -c ${URL_OVS_ARCHIVE}/${OVS_COMMIT}.tar.gz
+tar xzf ${OVS_COMMIT}.tar.gz; mv ovs-${COMMIT} ovs
 PATCHES=$(cd ${DIR}/patches; echo *patch)
 for patch in ${PATCHES}
 do
@@ -82,7 +82,7 @@ cd ../openvswitch-dpdk-${OVS_VER}
 sed -i "s/include\/rte_config.h/include\/dpdk\/rte_config.h/" acinclude.m4
 sed -i 's/DPDK_INCLUDE=.*/DPDK_INCLUDE=$RTE_SDK\/include\/dpdk/'  acinclude.m4
 autoreconf --install
-rm -rf debian/patches/ .git;
+rm -rf debian/patches/
 cat << EOF > debian/changelog
 openvswitch-dpdk (${OVS_VER}-1.nsh) unstable; urgency=low
   * Support NSH

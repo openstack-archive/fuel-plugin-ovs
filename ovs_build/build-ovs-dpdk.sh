@@ -3,14 +3,14 @@
 set -eux
 
 OVS_COMMIT=9f4ecd654dbcb88b15a424445184591fc887537e
-URL_OVS=https://github.com/openvswitch/ovs.git
+URL_OVS_ARCHIVE=https://github.com/openvswitch/ovs/archive
 BUILD_DEB=${BUILD_DEB:-/deb}
 BUILD_SRC="$(dirname `readlink -f $0`)"
 BUILD_DEST=${BUILD_DEST:-/tmp/ovs-dpdk}
 
 export DEB_BUILD_OPTIONS='parallel=8 nocheck'
 
-sudo apt-get -y install devscripts dpkg-dev git wget
+sudo apt-get -y install devscripts dpkg-dev wget
 
 rm -rf ${BUILD_DEST}; mkdir -p ${BUILD_DEST}
 
@@ -62,9 +62,9 @@ sudo apt-get install -y autoconf \
                python-zopeinterface \
                python-six
 
-git clone https://github.com/openvswitch/ovs.git
-cd ovs; git checkout ${OVS_COMMIT}; rm -rf .git
-cd ${BUILD_DEST}; cp -r ovs ovs-dpdk
+wget -c ${URL_OVS_ARCHIVE}/${OVS_COMMIT}.tar.gz
+tar xzf ${OVS_COMMIT}.tar.gz; mv ovs-${COMMIT} ovs
+cp -r ovs ovs-dpdk
 
 cd ovs-dpdk
 cp -r ${BUILD_SRC}/openvswitch-dpdk_2.5.90/debian .
