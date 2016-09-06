@@ -40,6 +40,7 @@ build-indep: build-config
 
 build-arch: build-config
 	dh_testdir
+	echo "CPUFLAGS_LIST := -DRTE_COMPILE_TIME_CPUFLAGS=" > mk/rte.cpuflags.mk
 	$(MAKE) O=$(DPDK_STATIC_DIR) build
 	# Unfortunately the decision about having static or shared libraries is
 	# made for the whole build, which then produces only .a or .so files
