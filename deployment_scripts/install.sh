@@ -10,7 +10,6 @@ nsh=$2
 dpdk=$3
 dpdk_socket_mem=${4:-''}
 
-
 if [ $nsh = 'true' ]
 then
     curl  http://$host:8080/plugins/fuel-plugin-ovs-0.9/repositories/ubuntu/ovs-nsh-dpdk.tar.gz | tar -xzv
@@ -38,8 +37,8 @@ else
         dpkg -i dpdk_16.07-1_amd64.deb
         dpkg -i openvswitch-switch-dpdk_2.5.90-1_amd64.deb
 
-        dpdk_pages=$(($dpdk_socket_mem / 2))
-        sed -i "s/[# ]*\(NR_2M_PAGES=\).*/\1${dpdk_pages}/" /etc/dpdk/dpdk.conf
+        #Set to 0, dpdk init script mount hugepages but don't change current allocation
+        sed -i "s/[# ]*\(NR_2M_PAGES=\).*/\10/" /etc/dpdk/dpdk.conf
         service dpdk start
 
         ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true
