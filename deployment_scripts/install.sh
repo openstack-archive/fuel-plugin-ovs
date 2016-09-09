@@ -9,6 +9,7 @@ host=$1
 nsh=$2
 dpdk=$3
 dpdk_socket_mem=${4:-''}
+allocate=${5:-''}
 
 
 if [ $nsh = 'true' ]
@@ -38,8 +39,7 @@ else
         dpkg -i dpdk_16.07-1_amd64.deb
         dpkg -i openvswitch-switch-dpdk_2.5.90-1_amd64.deb
 
-        dpdk_pages=$(($dpdk_socket_mem / 2))
-        sed -i "s/[# ]*\(NR_2M_PAGES=\).*/\1${dpdk_pages}/" /etc/dpdk/dpdk.conf
+        sed -i "s/[# ]*\(NR_2M_PAGES=\).*/\1${allocate}/" /etc/dpdk/dpdk.conf
         service dpdk start
 
         ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true
