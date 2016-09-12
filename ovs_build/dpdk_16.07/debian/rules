@@ -13,7 +13,7 @@ DEB_HOST_GNU_CPU := $(shell dpkg-architecture -qDEB_HOST_GNU_CPU)
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
 # build with debug symbols, dh_strip will create -dgbsyms packages by that
-export EXTRA_CFLAGS = -g
+export EXTRA_CFLAGS = -g -mno-avx2 -march=corei7-avx -mtune=corei7-avx
 
 # see ENVIRONMENT in dpkg-buildflags(1)
 # package maintainers to append CFLAGS
@@ -32,6 +32,8 @@ clean:
 
 build-config:
 	dh_testdir
+	sed -i '/RTE_MACHINE_CPUFLAG_AVX2/,+13 s/^/#/' lib/librte_acl/Makefile
+	sed -i '/__AVX2__/,+2 s/^/#/' mk/rte.cpuflags.mk
 	$(MAKE) O=$(DPDK_STATIC_DIR) T=$(DPDK_CONFIG) config
 
 build-indep: build-config
@@ -40,7 +42,6 @@ build-indep: build-config
 
 build-arch: build-config
 	dh_testdir
-	echo "CPUFLAGS_LIST := -DRTE_COMPILE_TIME_CPUFLAGS=" > mk/rte.cpuflags.mk
 	$(MAKE) O=$(DPDK_STATIC_DIR) build
 	# Unfortunately the decision about having static or shared libraries is
 	# made for the whole build, which then produces only .a or .so files
