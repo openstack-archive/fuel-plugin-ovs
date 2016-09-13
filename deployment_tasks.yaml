@@ -10,3 +10,14 @@
     puppet_manifest: puppet/manifests/ovs-install-compute.pp
     puppet_modules: puppet/modules:/etc/puppet/modules
     timeout: 720
+
+- id: update_flavors
+  type: puppet
+  version: 2.1.0
+  groups: [primary-controller]
+  requires: [post_deployment_start]
+  required_for: [post_deployment_end]
+  parameters:
+    puppet_manifest: puppet/manifests/ovs-update-flavors.pp
+    puppet_modules: puppet/modules:/etc/puppet/modules
+    timeout: 720
