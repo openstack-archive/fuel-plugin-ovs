@@ -13,7 +13,7 @@ DEB_HOST_GNU_CPU := $(shell dpkg-architecture -qDEB_HOST_GNU_CPU)
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
 # build with debug symbols, dh_strip will create -dgbsyms packages by that
-export EXTRA_CFLAGS = -g -mno-avx2 -march=corei7-avx -mtune=corei7-avx
+export EXTRA_CFLAGS = -g -march=corei7-avx -mno-movbe -mno-abm -mno-fma -mno-bmi -mno-bmi2 -mno-avx2 -mno-lzcnt -mtune=corei7-avx
 
 # see ENVIRONMENT in dpkg-buildflags(1)
 # package maintainers to append CFLAGS
