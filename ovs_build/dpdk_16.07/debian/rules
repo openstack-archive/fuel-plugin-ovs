@@ -33,6 +33,8 @@ clean:
 build-config:
 	dh_testdir
 	$(MAKE) O=$(DPDK_STATIC_DIR) T=$(DPDK_CONFIG) config
+	sed -ri 's,(RTE_MACHINE=).*,\1default,' \
+	        $(DPDK_STATIC_DIR)/.config
 
 build-indep: build-config
 	dh_testdir
