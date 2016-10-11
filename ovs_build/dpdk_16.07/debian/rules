@@ -35,6 +35,8 @@ build-config:
 	sed -i '/RTE_MACHINE_CPUFLAG_AVX2/,+13 s/^/#/' lib/librte_acl/Makefile
 	sed -i '/__AVX2__/,+2 s/^/#/' mk/rte.cpuflags.mk
 	$(MAKE) O=$(DPDK_STATIC_DIR) T=$(DPDK_CONFIG) config
+	sed -ri 's,(RTE_MACHINE=).*,\1default,' \
+	        $(DPDK_STATIC_DIR)/.config
 
 build-indep: build-config
 	dh_testdir
@@ -42,6 +44,7 @@ build-indep: build-config
 
 build-arch: build-config
 	dh_testdir
+	echo "CPUFLAGS_LIST := -DRTE_COMPILE_TIME_CPUFLAGS=" > mk/rte.cpuflags.mk
 	$(MAKE) O=$(DPDK_STATIC_DIR) build
 	# Unfortunately the decision about having static or shared libraries is
 	# made for the whole build, which then produces only .a or .so files
