@@ -1,7 +1,7 @@
 # get options
 $master_ip      = hiera('master_ip')
 $ovs_settings   = hiera('fuel-plugin-ovs')
-$dpdk           = hiera('dpdk')
+$dpdk           = hiera_hash('dpdk', {})
 
 $install_nsh    = $ovs_settings['install_nsh']
 $install_dpdk   = $ovs_settings['install_dpdk']
