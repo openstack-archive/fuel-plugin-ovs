@@ -1,10 +1,11 @@
 #!/bin/bash
 
-FROM ubuntu:14.04.3
+FROM ubuntu:16.04
 
 RUN apt-get update -y
+RUN apt-get install -y sudo
 RUN rm -rf /lib/modules
-RUN apt-get install -y linux-headers-3.13.0-86-generic
-RUN ln -s /lib/modules/3.13.0-86-generic /lib/modules/`uname -r`
+RUN apt-get install -y linux-headers-4.4.0-45-generic
+RUN ln -s /lib/modules/4.4.0-45-generic /lib/modules/`uname -r`
 
 ADD ./ /ovs_build

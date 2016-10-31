@@ -6,8 +6,7 @@ VAGRANTFILE_API_VERSION = "2"
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
-  config.vm.box = "trusty-server-cloudimg-amd64"
-  config.vm.box_url = "https://cloud-images.ubuntu.com/vagrant/trusty/current/trusty-server-cloudimg-amd64-vagrant-disk1.box"
+  config.vm.box = "bento/ubuntu-16.04"
 
   config.vm.define "fuel" do | h |
     h.vm.host_name = "fuel"
@@ -16,6 +15,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     h.vm.provider :virtualbox do |v|
       v.customize ["modifyvm", :id, "--memory", 4096]
       v.customize ["modifyvm", :id, "--cpus", 4]
+      v.customize "post-boot",["controlvm", :id, "setlinkstate1", "on"]
     end
   end
 end
