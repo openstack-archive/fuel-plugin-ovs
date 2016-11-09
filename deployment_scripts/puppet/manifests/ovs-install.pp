@@ -11,10 +11,10 @@ $ovs_socket_mem = join(pick($dpdk['ovs_socket_mem'], []), ',')
 
 
 if $operatingsystem == 'Ubuntu' {
-  if (!roles_include(['primary-controller', 'controller'])) or ($install_on_controller == 'true') {
+  if (!roles_include(['primary-controller', 'controller'])) or $install_on_controller {
       exec { 'install ovs_nsh_dpdk':
           command => "curl http://${master_ip}:8080/plugins/fuel-plugin-ovs-0.9/deployment_scripts/install.sh | bash -s ${master_ip} ${install_nsh} ${install_dpdk} ${ovs_socket_mem}",
-          path   => "/usr/bin:/usr/sbin:/bin:/sbin",
+          path    => '/usr/bin:/usr/sbin:/bin:/sbin',
       }
     }
 } elsif $operatingsystem == 'CentOS' {
