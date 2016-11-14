@@ -9,6 +9,7 @@ host=$1
 nsh=$2
 dpdk=$3
 dpdk_socket_mem=${4:-''}
+pmd_cpu_mask=${5:-'2'}
 
 if [ $nsh = 'true' ]
 then
@@ -43,6 +44,7 @@ else
 
         ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true
         ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-socket-mem="$dpdk_socket_mem"
+        ovs-vsctl --no-wait set Open_vSwitch . other_config:pmd-cpu-mask="$pmd_cpu_mask"
 
         service openvswitch-switch restart
     fi
