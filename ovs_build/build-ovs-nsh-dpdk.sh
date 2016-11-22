@@ -11,6 +11,7 @@ DIR="$(dirname `readlink -f $0`)"
 
 export DEB_BUILD_OPTIONS='parallel=8 nocheck'
 
+sudo apt-get update
 sudo apt-get build-dep openvswitch -y
 sudo apt-get -y install devscripts dpkg-dev git wget
 

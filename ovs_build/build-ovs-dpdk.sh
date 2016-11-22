@@ -10,6 +10,7 @@ BUILD_DEST=${BUILD_DEST:-/tmp/ovs-dpdk}
 
 export DEB_BUILD_OPTIONS='parallel=8 nocheck'
 
+sudo apt-get update
 sudo apt-get -y install devscripts dpkg-dev git wget
 
 rm -rf ${BUILD_DEST}; mkdir -p ${BUILD_DEST}
