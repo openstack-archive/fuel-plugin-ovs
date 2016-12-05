@@ -25,6 +25,12 @@ function build_pkg {
       cd ${DEB_DIR}; tar czvf ../repositories/ubuntu/ovs-nsh-dpdk.tar.gz .;
       cd ..; rm -rf ${DEB_DIR}
 
+      DEB_DIR=${DIR}/deb-ovs-nsh-dpdk-2.6.1
+      rm -rf ${DEB_DIR};  mkdir -p ${DEB_DIR}; chmod 777 ${DEB_DIR};
+      sudo docker run -v ${DEB_DIR}:/deb -t  ovs_build /ovs_build/build-ovs-nsh-dpdk-2.6.1.sh
+      cd ${DEB_DIR}; tar czvf ../repositories/ubuntu/ovs-nsh-dpdk-2.6.1.tar.gz .;
+      cd ..; rm -rf ${DEB_DIR}
+
       ;;
     *) echo "Not supported system"; exit 1;;
   esac

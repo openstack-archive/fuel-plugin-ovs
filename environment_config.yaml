@@ -14,3 +14,13 @@ attributes:
       weight: 20
       value: false
       label: "Install same OVS version on the Controller"
+    install_experimental_ovs:
+      type: "checkbox"
+      weight: 20
+      value: false
+      label: "Install experimental OVS version (2.6.1)"
+      restrictions:
+      - condition: "settings:fuel-plugin-ovs.install_nsh == false"
+        strict: false
+        message: "Experimental version only available for Openvswitch with NSH support."
+
