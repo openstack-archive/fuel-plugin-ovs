@@ -13,16 +13,16 @@ dpdk_socket_mem=${4:-''}
 if [ $nsh = 'true' ]
 then
     curl  http://$host:8080/plugins/fuel-plugin-ovs-1.0/repositories/ubuntu/ovs-nsh-dpdk.tar.gz | tar -xzv
-    dpkg -i openvswitch-datapath-dkms_2.5.90-1.nsh_all.deb
-    dpkg -i openvswitch-common_2.5.90-1.nsh_amd64.deb
-    dpkg -i openvswitch-switch_2.5.90-1.nsh_amd64.deb
-    dpkg -i python-openvswitch_2.5.90-1.nsh_all.deb
+    dpkg -i openvswitch-datapath-dkms_2.6.1-1.nsh_all.deb
+    dpkg -i openvswitch-common_2.6.1-1.nsh_amd64.deb
+    dpkg -i openvswitch-switch_2.6.1-1.nsh_amd64.deb
+    dpkg -i python-openvswitch_2.6.1-1.nsh_all.deb
     if [ $dpdk = 'true' ]
     then
         dpkg -i libxenstore3.0*.deb
         dpkg -i libdpdk0_2.2.0-1_amd64.deb
         dpkg -i dpdk_2.2.0-1_amd64.deb
-        dpkg -i openvswitch-switch-dpdk_2.5.90-1.nsh_amd64.deb
+        dpkg -i openvswitch-switch-dpdk_2.6.1-1.nsh_amd64.deb
     fi
 else
     curl  http://$host:8080/plugins/fuel-plugin-ovs-1.0/repositories/ubuntu/ovs-dpdk.tar.gz | tar -xzv
