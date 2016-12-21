@@ -1,0 +1,9 @@
+Code-Review+2: Ruijing <ruijing.guo@intel.com>
+Code-Review+1: Michael Polenchuk <mpolenchuk@mirantis.com>
+Workflow+1: Ruijing <ruijing.guo@intel.com>
+Verified+2: Jenkins
+Submitted-by: Jenkins
+Submitted-at: Wed, 21 Dec 2016 01:19:21 +0000
+Reviewed-on: https://review.openstack.org/397307
+Project: openstack/fuel-plugin-ovs
+Branch: refs/heads/master
