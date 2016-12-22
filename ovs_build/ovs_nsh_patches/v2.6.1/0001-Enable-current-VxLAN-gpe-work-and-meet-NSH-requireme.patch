@@ -1,34 +1,31 @@
-From 5d79831435ec4e5bea20cc36c3f83eacf6fd065c Mon Sep 17 00:00:00 2001
+From 9f7148f9dc03053a4a3231a7cf819c447a178a17 Mon Sep 17 00:00:00 2001
 From: Yi Yang <yi.y.yang@intel.com>
-Date: Mon, 11 Apr 2016 15:58:14 +0800
-Subject: [PATCH 1/6] ovs-vxlan-gpe: vxlan extension to support vxlan-gpe
- tunnel port
+Date: Fri, 11 Nov 2016 11:13:18 +0800
+Subject: [PATCH 1/8] Enable current VxLAN-gpe work and meet NSH requirements
 
-Signed-off-by: Mengke Liu <mengke.liu@intel.com>
-Signed-off-by: Ricky Li <ricky.li@intel.com>
-Signed-off-by: Johnson Li <johnson.li@intel.com>
 Signed-off-by: Yi Yang <yi.y.yang@intel.com>
 ---
  datapath/flow_netlink.c                           |  8 +-
  datapath/linux/compat/include/linux/openvswitch.h |  1 +
- datapath/linux/compat/include/net/vxlan.h         | 73 +++++++++++++++++++
- datapath/linux/compat/vxlan.c                     | 30 ++++++++
+ datapath/linux/compat/include/net/vxlan.h         |  1 +
+ datapath/linux/compat/vxlan.c                     |  4 +-
+ datapath/vport-netdev.c                           |  3 +-
  datapath/vport-vxlan.c                            | 15 ++++
+ include/openvswitch/match.h                       |  4 +
+ include/openvswitch/meta-flow.h                   | 28 +++++++
+ include/openvswitch/packets.h                     |  4 +-
  lib/flow.c                                        |  8 ++
  lib/match.c                                       | 34 +++++++++
- lib/match.h                                       |  4 +
  lib/meta-flow.c                                   | 36 +++++++++
- lib/meta-flow.h                                   | 28 +++++++
  lib/netdev-vport.c                                |  2 +
  lib/nx-match.c                                    |  4 +
  lib/odp-util.c                                    | 89 ++++++++++++++++++++++-
- lib/packets.h                                     |  4 +-
  tests/ofproto.at                                  |  4 +-
  tests/ovs-ofctl.at                                |  4 +
- 16 files changed, 340 insertions(+), 4 deletions(-)
+ 17 files changed, 241 insertions(+), 8 deletions(-)
 
 diff --git a/datapath/flow_netlink.c b/datapath/flow_netlink.c
-index 6ffcc53..351a504 100644
+index 0f32664..2dcae07 100644
 --- a/datapath/flow_netlink.c
 +++ b/datapath/flow_netlink.c
 @@ -309,6 +309,7 @@ size_t ovs_key_attr_size(void)
@@ -39,7 +36,7 @@ index 6ffcc53..351a504 100644
  };
  
  static const struct ovs_len_tbl ovs_tunnel_key_lens[OVS_TUNNEL_KEY_ATTR_MAX + 1] = {
-@@ -521,6 +522,9 @@ static int vxlan_tun_opt_from_nlattr(const struct nlattr *attr,
+@@ -523,6 +524,9 @@ static int vxlan_tun_opt_from_nlattr(const struct nlattr *attr,
  		case OVS_VXLAN_EXT_GBP:
  			opts.gbp = nla_get_u32(a);
  			break;
@@ -49,7 +46,7 @@ index 6ffcc53..351a504 100644
  		default:
  			OVS_NLERR(log, "Unknown VXLAN extension attribute %d",
  				  type);
-@@ -677,7 +681,9 @@ static int vxlan_opt_to_nlattr(struct sk_buff *skb,
+@@ -709,7 +713,9 @@ static int vxlan_opt_to_nlattr(struct sk_buff *skb,
  	if (!nla)
  		return -EMSGSIZE;
  
@@ -61,10 +58,10 @@ index 6ffcc53..351a504 100644
  
  	nla_nest_end(skb, nla);
 diff --git a/datapath/linux/compat/include/linux/openvswitch.h b/datapath/linux/compat/include/linux/openvswitch.h
-index 3b39ebb..44adb81 100644
+index 12260d8..44b7ce4 100644
 --- a/datapath/linux/compat/include/linux/openvswitch.h
 +++ b/datapath/linux/compat/include/linux/openvswitch.h
-@@ -287,6 +287,7 @@ enum ovs_vport_attr {
+@@ -291,6 +291,7 @@ enum ovs_vport_attr {
  enum {
  	OVS_VXLAN_EXT_UNSPEC,
  	OVS_VXLAN_EXT_GBP,      /* Flag or __u32 */
@@ -73,172 +70,57 @@ index 3b39ebb..44adb81 100644
  };
  
 diff --git a/datapath/linux/compat/include/net/vxlan.h b/datapath/linux/compat/include/net/vxlan.h
-index 75a5a7a..2bfc3f8 100644
+index 5bc8969..5a994b2 100644
 --- a/datapath/linux/compat/include/net/vxlan.h
 +++ b/datapath/linux/compat/include/net/vxlan.h
-@@ -84,6 +84,75 @@ struct vxlanhdr_gbp {
- #define VXLAN_GBP_POLICY_APPLIED	(BIT(3) << 16)
- #define VXLAN_GBP_ID_MASK		(0xFFFF)
+@@ -201,6 +201,7 @@ reserved_flags2:2;
  
-+/*
-+ * VXLAN Generic Protocol Extension Extension:
-+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-+ * |R|R|Ver|I|P|R|O|R|R|R|R|R|R|R|R|R|R|R|R|R|R|R|R|  Next Proto   |
-+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-+ * |                VXLAN Network Identifier (VNI) |   Reserved    |
-+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-+ * Ver = Version. Indicates VXLAN GPE protocol version.  The initial
-+ *      version is 0.  If a receiver does not support the version
-+ *      indicated it MUST drop the packet.
-+ *
-+ * I = Instance Bit. The I bit MUST be set to indicate a valid VNI.
-+ *
-+ * P = Next Protocol Bit. The P bit is set to indicate that the
-+ *     Next Protocol field is present.
-+ *
-+ * O = OAM Flag Bit. The O bit is set to indicate that the packet
-+ *     is an OAM packet.
-+ *
-+ * [1] https://www.ietf.org/id/draft-ietf-nvo3-vxlan-gpe-01.txt
-+ */
-+
-+struct vxlanhdr_gpe {
-+#ifdef __LITTLE_ENDIAN_BITFIELD
-+       uint8_t    oam_flag:1;
-+       uint8_t    reserved_flags1:1;
-+       uint8_t    np_applied:1;
-+       uint8_t    instance_applied:1;
-+       uint8_t    gpe_version:2;
-+       uint8_t    reserved_flags2:2;
-+#elif defined(__BIG_ENDIAN_BITFIELD)
-+       uint8_t    reserved_flags2:2;
-+       uint8_t    gpe_version:2;
-+       uint8_t    instance_applied:1;
-+       uint8_t    np_applied:1;
-+       uint8_t    reserved_flags1:1;
-+       uint8_t    oam_flag:1;
-+#else
-+#error "Please fix <asm/byteorder.h>"
-+#endif
-+    uint8_t    reserved_flags3;
-+    uint8_t    reserved_flags4;
-+    uint8_t    next_proto;
-+    __be32        vx_vni;
-+};
-+
-+/* VxLAN-GPE Header Next Protocol */
-+#define VXLAN_GPE_NP_IPV4        0x01
-+#define VXLAN_GPE_NP_IPV6        0x02
-+#define VXLAN_GPE_NP_ETHERNET    0x03
-+#define VXLAN_GPE_NP_NSH        0x04
-+
-+/* skb->mark mapping
-+ *
-+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-+ * |R|R|Ver|I|P|R|O|R|R|R|R|R|R|R|R|R|R|R|R|R|R|R|R|  Next Proto   |
-+ * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-+ */
-+
-+#define VXLAN_GPE_OAM_FLAG                     (BIT(0) << 24)
-+#define VXLAN_GPE_NP_APPLIED           (BIT(0) << 26)
-+#define VXLAN_GPE_INSTANCE_APPLIED     (BIT(0) << 27)
-+#define VXLAN_GPE_VERSION                      ((BIT(0) << 28) | (BIT(0) << 29))
-+
-+#define VXLAN_GPE_NP_MASK                      (0xFF)
-+
-+#define VXLAN_GPE_USED_BITS (VXLAN_GPE_OAM_FLAG | VXLAN_GPE_NP_APPLIED \
-+                           | VXLAN_GPE_INSTANCE_APPLIED | VXLAN_GPE_VERSION | 0xFF)
-+
- /* VXLAN protocol header:
-  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-  * |G|R|R|R|I|R|R|C|               Reserved                        |
-@@ -104,6 +173,7 @@ struct vxlanhdr {
- #define VXLAN_HF_RCO BIT(21)
- #define VXLAN_HF_VNI BIT(27)
- #define VXLAN_HF_GBP BIT(31)
-+#define VXLAN_HF_GPE BIT(26)
- 
- /* Remote checksum offload header option */
- #define VXLAN_RCO_MASK  0x7f    /* Last byte of vni field */
-@@ -120,6 +190,7 @@ struct vxlanhdr {
  struct vxlan_metadata {
- 	__be32          vni;
- 	u32             gbp;
-+	u32             gpe;
+ 	u32		gbp;
++	u32		gpe;
  };
  
- #define VNI_HASH_BITS	10
-@@ -205,11 +276,13 @@ struct vxlan_dev {
- #define VXLAN_F_GBP			0x800
- #define VXLAN_F_REMCSUM_NOPARTIAL	0x1000
- #define VXLAN_F_COLLECT_METADATA	0x2000
-+#define VXLAN_F_GPE                     0x4000
- 
- /* Flags that are used in the receive path. These flags must match in
-  * order for a socket to be shareable
-  */
- #define VXLAN_F_RCV_FLAGS		(VXLAN_F_GBP |			\
-+                                         VXLAN_F_GPE |                  \
- 					 VXLAN_F_UDP_ZERO_CSUM6_RX |	\
- 					 VXLAN_F_REMCSUM_RX |		\
- 					 VXLAN_F_REMCSUM_NOPARTIAL |	\
+ /* per UDP socket information */
 diff --git a/datapath/linux/compat/vxlan.c b/datapath/linux/compat/vxlan.c
-index 4faa18f..7ef051c 100644
+index d5dbe8d..a80610b 100644
 --- a/datapath/linux/compat/vxlan.c
 +++ b/datapath/linux/compat/vxlan.c
-@@ -971,6 +971,18 @@ static int vxlan_udp_encap_recv(struct sock *sk, struct sk_buff *skb)
- 			md->gbp |= VXLAN_GBP_POLICY_APPLIED;
- 
- 		flags &= ~VXLAN_GBP_USED_BITS;
-+	} else if ((flags & VXLAN_HF_GPE) && (vs->flags & VXLAN_F_GPE)) {
-+		struct vxlanhdr_gpe *gpe;
-+
-+		gpe = (struct vxlanhdr_gpe *)vxh;
-+		md->gpe = ntohs(gpe->next_proto);
-+
-+		buf.dst.u.tun_info.key.tun_flags |= TUNNEL_VXLAN_OPT;
-+
-+		if (gpe->oam_flag)
-+			md->gpe |= VXLAN_GPE_OAM_FLAG;
-+
-+		flags &= ~VXLAN_GPE_USED_BITS;
+@@ -705,7 +705,6 @@ static int vxlan_rcv(struct sock *sk, struct sk_buff *skb)
+ 	if (vs->flags & VXLAN_F_GPE) {
+ 		if (!vxlan_parse_gpe_hdr(&unparsed, &protocol, skb, vs->flags))
+ 			goto drop;
+-		raw_proto = true;
  	}
  
- 	if (flags || vni & ~VXLAN_VNI_MASK) {
-@@ -1023,6 +1035,22 @@ static void vxlan_build_gbp_hdr(struct vxlanhdr *vxh, u32 vxflags,
- 	gbp->policy_id = htons(md->gbp & VXLAN_GBP_ID_MASK);
- }
- 
-+static void vxlan_build_gpe_hdr(struct vxlanhdr *vxh, u32 vxflags,
-+                                struct vxlan_metadata *md)
-+{
-+       struct vxlanhdr_gpe *gpe;
-+
-+       if (!md->gpe)
-+               return;
-+
-+       gpe = (struct vxlanhdr_gpe*)vxh;
-+       vxh->vx_flags |= htonl(VXLAN_HF_GPE);
-+
-+       if (md->gpe & VXLAN_GPE_OAM_FLAG)
-+               gpe->oam_flag = 1;
-+       gpe->next_proto = md->gpe & VXLAN_GPE_NP_MASK;
-+}
-+
- #if IS_ENABLED(CONFIG_IPV6)
- static int vxlan6_xmit_skb(struct dst_entry *dst, struct sock *sk,
- 			   struct sk_buff *skb,
-@@ -1106,6 +1134,8 @@ static int vxlan6_xmit_skb(struct dst_entry *dst, struct sock *sk,
- 
+ 	if (__iptunnel_pull_header(skb, VXLAN_HLEN, protocol, raw_proto,
+@@ -896,10 +895,9 @@ static int vxlan_build_skb(struct sk_buff *skb, struct dst_entry *dst,
  	if (vxflags & VXLAN_F_GBP)
  		vxlan_build_gbp_hdr(vxh, vxflags, md);
-+	else if (vxflags & VXLAN_F_GPE)
-+		vxlan_build_gpe_hdr(vxh, vxflags, md);
+ 	if (vxflags & VXLAN_F_GPE) {
+-		err = vxlan_build_gpe_hdr(vxh, vxflags, skb->protocol);
++		err = vxlan_build_gpe_hdr(vxh, vxflags, inner_protocol);
+ 		if (err < 0)
+ 			goto out_free;
+-		inner_protocol = skb->protocol;
+ 	}
  
- 	ovs_skb_set_inner_protocol(skb, htons(ETH_P_TEB));
+ 	ovs_skb_set_inner_protocol(skb, inner_protocol);
+diff --git a/datapath/vport-netdev.c b/datapath/vport-netdev.c
+index 970f7d3..0ee076b 100644
+--- a/datapath/vport-netdev.c
++++ b/datapath/vport-netdev.c
+@@ -102,7 +102,8 @@ struct vport *ovs_netdev_link(struct vport *vport, const char *name)
+ 	}
  
+ 	if (vport->dev->flags & IFF_LOOPBACK ||
+-	    vport->dev->type != ARPHRD_ETHER ||
++	    (vport->dev->type != ARPHRD_ETHER &&
++             vport->dev->type != ARPHRD_NONE) ||
+ 	    ovs_is_internal_dev(vport->dev)) {
+ 		err = -EINVAL;
+ 		goto error_put;
 diff --git a/datapath/vport-vxlan.c b/datapath/vport-vxlan.c
-index c05f5d4..5d775cc 100644
+index 11965c0..e32c970 100644
 --- a/datapath/vport-vxlan.c
 +++ b/datapath/vport-vxlan.c
 @@ -52,6 +52,18 @@ static int vxlan_get_options(const struct vport *vport, struct sk_buff *skb)
@@ -277,11 +159,80 @@ index c05f5d4..5d775cc 100644
  
  	return 0;
  }
+diff --git a/include/openvswitch/match.h b/include/openvswitch/match.h
+index 3b7f32f..93af1b8 100644
+--- a/include/openvswitch/match.h
++++ b/include/openvswitch/match.h
+@@ -89,6 +89,10 @@ void match_set_tun_gbp_id_masked(struct match *match, ovs_be16 gbp_id, ovs_be16
+ void match_set_tun_gbp_id(struct match *match, ovs_be16 gbp_id);
+ void match_set_tun_gbp_flags_masked(struct match *match, uint8_t flags, uint8_t mask);
+ void match_set_tun_gbp_flags(struct match *match, uint8_t flags);
++void match_set_tun_gpe_np_masked(struct match *match, uint8_t gpe_np, uint8_t mask);
++void match_set_tun_gpe_np(struct match *match, uint8_t gpe_np);
++void match_set_tun_gpe_flags_masked(struct match *match, uint8_t flags, uint8_t mask);
++void match_set_tun_gpe_flags(struct match *match, uint8_t flags);
+ void match_set_in_port(struct match *, ofp_port_t ofp_port);
+ void match_set_pkt_mark(struct match *, uint32_t pkt_mark);
+ void match_set_pkt_mark_masked(struct match *, uint32_t pkt_mark, uint32_t mask);
+diff --git a/include/openvswitch/meta-flow.h b/include/openvswitch/meta-flow.h
+index b091c1b..9e569ef 100644
+--- a/include/openvswitch/meta-flow.h
++++ b/include/openvswitch/meta-flow.h
+@@ -493,6 +493,34 @@ enum OVS_PACKED_ENUM mf_field_id {
+      */
+     MFF_TUN_GBP_FLAGS,
+ 
++     /* "tun_gpe_np".
++     *
++     * VXLAN Generic Protocol Extension next_proto
++     *
++     * Type: u8.
++     * Maskable: bitwise.
++     * Formatting: hexadecimal.
++     * Prerequisites: none.
++     * Access: read/write.
++     * NXM: NXM_NX_TUN_GPE_NP(200) since v2.4.
++     * OXM: none.
++     */
++    MFF_TUN_GPE_NP,
++
++     /* "tun_gpe_flags".
++     *
++     * VXLAN Generic Protocol Extension flag
++     *
++     * Type: u8.
++     * Maskable: bitwise.
++     * Formatting: hexadecimal.
++     * Prerequisites: none.
++     * Access: read/write.
++     * NXM: NXM_NX_TUN_GPE_FLAGS(201) since v2.4.
++     * OXM: none.
++     */
++    MFF_TUN_GPE_FLAGS,
++
+ #if TUN_METADATA_NUM_OPTS == 64
+     /* "tun_metadata<N>".
+      *
+diff --git a/include/openvswitch/packets.h b/include/openvswitch/packets.h
+index 5d97309..1e82df0 100644
+--- a/include/openvswitch/packets.h
++++ b/include/openvswitch/packets.h
+@@ -34,7 +34,9 @@ struct flow_tnl {
+     ovs_be16 tp_dst;
+     ovs_be16 gbp_id;
+     uint8_t  gbp_flags;
+-    uint8_t  pad1[5];        /* Pad to 64 bits. */
++    uint8_t  gpe_np;
++    uint8_t  gpe_flags;
++    uint8_t  pad1[3];        /* Pad to 64 bits. */
+     struct tun_metadata metadata;
+ };
+ 
 diff --git a/lib/flow.c b/lib/flow.c
-index b9ce331..d24bdc9 100644
+index ba4f8c7..375979b 100644
 --- a/lib/flow.c
 +++ b/lib/flow.c
-@@ -870,6 +870,12 @@ flow_get_metadata(const struct flow *flow, struct match *flow_metadata)
+@@ -897,6 +897,12 @@ flow_get_metadata(const struct flow *flow, struct match *flow_metadata)
      if (flow->tunnel.gbp_flags) {
          match_set_tun_gbp_flags(flow_metadata, flow->tunnel.gbp_flags);
      }
@@ -294,7 +245,7 @@ index b9ce331..d24bdc9 100644
      tun_metadata_get_fmd(&flow->tunnel, flow_metadata);
      if (flow->metadata != htonll(0)) {
          match_set_metadata(flow_metadata, flow->metadata);
-@@ -1265,6 +1271,8 @@ void flow_wildcards_init_for_packet(struct flow_wildcards *wc,
+@@ -1292,6 +1298,8 @@ void flow_wildcards_init_for_packet(struct flow_wildcards *wc,
          WC_MASK_FIELD(wc, tunnel.tp_dst);
          WC_MASK_FIELD(wc, tunnel.gbp_id);
          WC_MASK_FIELD(wc, tunnel.gbp_flags);
@@ -304,10 +255,10 @@ index b9ce331..d24bdc9 100644
          if (!(flow->tunnel.flags & FLOW_TNL_F_UDPIF)) {
              if (flow->tunnel.metadata.present.map) {
 diff --git a/lib/match.c b/lib/match.c
-index fd571d9..52437c9 100644
+index d78e6a1..f19648d 100644
 --- a/lib/match.c
 +++ b/lib/match.c
-@@ -289,6 +289,32 @@ match_set_tun_gbp_flags(struct match *match, uint8_t flags)
+@@ -305,6 +305,32 @@ match_set_tun_gbp_flags(struct match *match, uint8_t flags)
  }
  
  void
@@ -340,7 +291,7 @@ index fd571d9..52437c9 100644
  match_set_in_port(struct match *match, ofp_port_t ofp_port)
  {
      match->wc.masks.in_port.ofp_port = u16_to_ofp(UINT16_MAX);
-@@ -1013,6 +1039,14 @@ format_flow_tunnel(struct ds *s, const struct match *match)
+@@ -1029,6 +1055,14 @@ format_flow_tunnel(struct ds *s, const struct match *match)
          ds_put_format(s, "tun_gbp_flags=%#"PRIx8",", tnl->gbp_flags);
      }
  
@@ -355,23 +306,8 @@ index fd571d9..52437c9 100644
      if (wc->masks.tunnel.ip_tos) {
          ds_put_format(s, "tun_tos=%"PRIx8",", tnl->ip_tos);
      }
-diff --git a/lib/match.h b/lib/match.h
-index 0a6ac29..48aa0b1 100644
---- a/lib/match.h
-+++ b/lib/match.h
-@@ -86,6 +86,10 @@ void match_set_tun_gbp_id_masked(struct match *match, ovs_be16 gbp_id, ovs_be16
- void match_set_tun_gbp_id(struct match *match, ovs_be16 gbp_id);
- void match_set_tun_gbp_flags_masked(struct match *match, uint8_t flags, uint8_t mask);
- void match_set_tun_gbp_flags(struct match *match, uint8_t flags);
-+void match_set_tun_gpe_np_masked(struct match *match, uint8_t gpe_np, uint8_t mask);
-+void match_set_tun_gpe_np(struct match *match, uint8_t gpe_np);
-+void match_set_tun_gpe_flags_masked(struct match *match, uint8_t flags, uint8_t mask);
-+void match_set_tun_gpe_flags(struct match *match, uint8_t flags);
- void match_set_in_port(struct match *, ofp_port_t ofp_port);
- void match_set_pkt_mark(struct match *, uint32_t pkt_mark);
- void match_set_pkt_mark_masked(struct match *, uint32_t pkt_mark, uint32_t mask);
 diff --git a/lib/meta-flow.c b/lib/meta-flow.c
-index 721152c..ab77fca 100644
+index d07f927..5d0721f 100644
 --- a/lib/meta-flow.c
 +++ b/lib/meta-flow.c
 @@ -213,6 +213,10 @@ mf_is_all_wild(const struct mf_field *mf, const struct flow_wildcards *wc)
@@ -385,7 +321,7 @@ index 721152c..ab77fca 100644
      CASE_MFF_TUN_METADATA:
          return !ULLONG_GET(wc->masks.tunnel.metadata.present.map,
                             mf->id - MFF_TUN_METADATA0);
-@@ -515,6 +519,8 @@ mf_is_value_valid(const struct mf_field *mf, const union mf_value *value)
+@@ -434,6 +438,8 @@ mf_is_value_valid(const struct mf_field *mf, const union mf_value *value)
      case MFF_TUN_TTL:
      case MFF_TUN_GBP_ID:
      case MFF_TUN_GBP_FLAGS:
@@ -394,7 +330,7 @@ index 721152c..ab77fca 100644
      CASE_MFF_TUN_METADATA:
      case MFF_METADATA:
      case MFF_IN_PORT:
-@@ -648,6 +654,12 @@ mf_get_value(const struct mf_field *mf, const struct flow *flow,
+@@ -568,6 +574,12 @@ mf_get_value(const struct mf_field *mf, const struct flow *flow,
      case MFF_TUN_GBP_FLAGS:
          value->u8 = flow->tunnel.gbp_flags;
          break;
@@ -407,7 +343,7 @@ index 721152c..ab77fca 100644
      case MFF_TUN_TTL:
          value->u8 = flow->tunnel.ip_ttl;
          break;
-@@ -899,6 +911,12 @@ mf_set_value(const struct mf_field *mf,
+@@ -823,6 +835,12 @@ mf_set_value(const struct mf_field *mf,
      case MFF_TUN_GBP_FLAGS:
           match_set_tun_gbp_flags(match, value->u8);
           break;
@@ -420,7 +356,7 @@ index 721152c..ab77fca 100644
      case MFF_TUN_TOS:
          match_set_tun_tos(match, value->u8);
          break;
-@@ -1216,6 +1234,12 @@ mf_set_flow_value(const struct mf_field *mf,
+@@ -1161,6 +1179,12 @@ mf_set_flow_value(const struct mf_field *mf,
      case MFF_TUN_GBP_FLAGS:
          flow->tunnel.gbp_flags = value->u8;
          break;
@@ -433,7 +369,7 @@ index 721152c..ab77fca 100644
      case MFF_TUN_TOS:
          flow->tunnel.ip_tos = value->u8;
          break;
-@@ -1535,6 +1559,12 @@ mf_set_wild(const struct mf_field *mf, struct match *match, char **err_str)
+@@ -1484,6 +1508,12 @@ mf_set_wild(const struct mf_field *mf, struct match *match, char **err_str)
      case MFF_TUN_GBP_FLAGS:
          match_set_tun_gbp_flags_masked(match, 0, 0);
          break;
@@ -446,7 +382,7 @@ index 721152c..ab77fca 100644
      case MFF_TUN_TOS:
          match_set_tun_tos_masked(match, 0, 0);
          break;
-@@ -1838,6 +1868,12 @@ mf_set(const struct mf_field *mf,
+@@ -1793,6 +1823,12 @@ mf_set(const struct mf_field *mf,
      case MFF_TUN_GBP_FLAGS:
          match_set_tun_gbp_flags_masked(match, value->u8, mask->u8);
          break;
@@ -459,50 +395,11 @@ index 721152c..ab77fca 100644
      case MFF_TUN_TTL:
          match_set_tun_ttl_masked(match, value->u8, mask->u8);
          break;
-diff --git a/lib/meta-flow.h b/lib/meta-flow.h
-index c73a1af..4bd9ff6 100644
---- a/lib/meta-flow.h
-+++ b/lib/meta-flow.h
-@@ -491,6 +491,34 @@ enum OVS_PACKED_ENUM mf_field_id {
-      */
-     MFF_TUN_GBP_FLAGS,
- 
-+     /* "tun_gpe_np".
-+     *
-+     * VXLAN Generic Protocol Extension next_proto
-+     *
-+     * Type: u8.
-+     * Maskable: bitwise.
-+     * Formatting: hexadecimal.
-+     * Prerequisites: none.
-+     * Access: read/write.
-+     * NXM: NXM_NX_TUN_GPE_NP(111) since v2.4.
-+     * OXM: none.
-+     */
-+    MFF_TUN_GPE_NP,
-+
-+     /* "tun_gpe_flags".
-+     *
-+     * VXLAN Generic Protocol Extension flag
-+     *
-+     * Type: u8.
-+     * Maskable: bitwise.
-+     * Formatting: hexadecimal.
-+     * Prerequisites: none.
-+     * Access: read/write.
-+     * NXM: NXM_NX_TUN_GPE_FLAGS(112) since v2.4.
-+     * OXM: none.
-+     */
-+    MFF_TUN_GPE_FLAGS,
-+
- #if TUN_METADATA_NUM_OPTS == 64
-     /* "tun_metadata<N>".
-      *
 diff --git a/lib/netdev-vport.c b/lib/netdev-vport.c
-index e398562..92ceec1 100644
+index ac31da6..cff0f5c 100644
 --- a/lib/netdev-vport.c
 +++ b/lib/netdev-vport.c
-@@ -583,6 +583,8 @@ set_tunnel_config(struct netdev *dev_, const struct smap *args)
+@@ -526,6 +526,8 @@ set_tunnel_config(struct netdev *dev_, const struct smap *args)
              while (ext) {
                  if (!strcmp(type, "vxlan") && !strcmp(ext, "gbp")) {
                      tnl_cfg.exts |= (1 << OVS_VXLAN_EXT_GBP);
@@ -512,10 +409,10 @@ index e398562..92ceec1 100644
                      VLOG_WARN("%s: unknown extension '%s'", name, ext);
                  }
 diff --git a/lib/nx-match.c b/lib/nx-match.c
-index 9f0f452..0eecac7 100644
+index b03ccf2..65d7ee3 100644
 --- a/lib/nx-match.c
 +++ b/lib/nx-match.c
-@@ -1037,6 +1037,10 @@ nx_put_raw(struct ofpbuf *b, enum ofp_version oxm, const struct match *match,
+@@ -1036,6 +1036,10 @@ nx_put_raw(struct ofpbuf *b, enum ofp_version oxm, const struct match *match,
                  flow->tunnel.gbp_id, match->wc.masks.tunnel.gbp_id);
      nxm_put_8m(b, MFF_TUN_GBP_FLAGS, oxm,
                 flow->tunnel.gbp_flags, match->wc.masks.tunnel.gbp_flags);
@@ -527,10 +424,10 @@ index 9f0f452..0eecac7 100644
  
      /* Registers. */
 diff --git a/lib/odp-util.c b/lib/odp-util.c
-index b4689cc..7983720 100644
+index 6d29b67..b9e8aa7 100644
 --- a/lib/odp-util.c
 +++ b/lib/odp-util.c
-@@ -1727,6 +1727,7 @@ odp_actions_from_string(const char *s, const struct simap *port_names,
+@@ -1755,6 +1755,7 @@ odp_actions_from_string(const char *s, const struct simap *port_names,
  
  static const struct attr_len_tbl ovs_vxlan_ext_attr_lens[OVS_VXLAN_EXT_MAX + 1] = {
      [OVS_VXLAN_EXT_GBP]                 = { .len = 4 },
@@ -538,7 +435,7 @@ index b4689cc..7983720 100644
  };
  
  static const struct attr_len_tbl ovs_tun_key_attr_lens[OVS_TUNNEL_KEY_ATTR_MAX + 1] = {
-@@ -1888,7 +1889,10 @@ odp_tun_key_from_attr__(const struct nlattr *attr,
+@@ -1916,7 +1917,10 @@ odp_tun_key_from_attr__(const struct nlattr *attr,
              break;
          case OVS_TUNNEL_KEY_ATTR_VXLAN_OPTS: {
              static const struct nl_policy vxlan_opts_policy[] = {
@@ -550,7 +447,7 @@ index b4689cc..7983720 100644
              };
              struct nlattr *ext[ARRAY_SIZE(vxlan_opts_policy)];
  
-@@ -1902,6 +1906,12 @@ odp_tun_key_from_attr__(const struct nlattr *attr,
+@@ -1930,6 +1934,12 @@ odp_tun_key_from_attr__(const struct nlattr *attr,
                  tun->gbp_id = htons(gbp & 0xFFFF);
                  tun->gbp_flags = (gbp >> 16) & 0xFF;
              }
@@ -563,7 +460,7 @@ index b4689cc..7983720 100644
  
              break;
          }
-@@ -1988,6 +1998,13 @@ tun_key_to_attr(struct ofpbuf *a, const struct flow_tnl *tun_key,
+@@ -2016,6 +2026,13 @@ tun_key_to_attr(struct ofpbuf *a, const struct flow_tnl *tun_key,
          nl_msg_put_u32(a, OVS_VXLAN_EXT_GBP,
                         (tun_key->gbp_flags << 16) | ntohs(tun_key->gbp_id));
          nl_msg_end_nested(a, vxlan_opts_ofs);
@@ -577,7 +474,7 @@ index b4689cc..7983720 100644
      }
      tun_metadata_to_geneve_nlattr(tun_key, tun_flow_key, key_buf, a);
  
-@@ -2383,6 +2400,26 @@ format_odp_tun_vxlan_opt(const struct nlattr *attr,
+@@ -2410,6 +2427,26 @@ format_odp_tun_vxlan_opt(const struct nlattr *attr,
              ds_put_cstr(ds, "),");
              break;
          }
@@ -604,7 +501,7 @@ index b4689cc..7983720 100644
  
          default:
              format_unknown_key(ds, a, ma);
-@@ -3670,6 +3707,40 @@ scan_vxlan_gbp(const char *s, uint32_t *key, uint32_t *mask)
+@@ -3705,6 +3742,40 @@ scan_vxlan_gbp(const char *s, uint32_t *key, uint32_t *mask)
  }
  
  static int
@@ -645,7 +542,7 @@ index b4689cc..7983720 100644
  scan_geneve(const char *s, struct geneve_scan *key, struct geneve_scan *mask)
  {
      const char *s_base = s;
-@@ -3796,6 +3867,21 @@ vxlan_gbp_to_attr(struct ofpbuf *a, const void *data_)
+@@ -3831,6 +3902,21 @@ vxlan_gbp_to_attr(struct ofpbuf *a, const void *data_)
  }
  
  static void
@@ -667,7 +564,7 @@ index b4689cc..7983720 100644
  geneve_to_attr(struct ofpbuf *a, const void *data_)
  {
      const struct geneve_scan *geneve = data_;
-@@ -4031,6 +4117,7 @@ parse_odp_key_mask_attr(const char *s, const struct simap *port_names,
+@@ -4066,6 +4152,7 @@ parse_odp_key_mask_attr(const char *s, const struct simap *port_names,
          SCAN_FIELD_NESTED("tp_src=", ovs_be16, be16, OVS_TUNNEL_KEY_ATTR_TP_SRC);
          SCAN_FIELD_NESTED("tp_dst=", ovs_be16, be16, OVS_TUNNEL_KEY_ATTR_TP_DST);
          SCAN_FIELD_NESTED_FUNC("vxlan(gbp(", uint32_t, vxlan_gbp, vxlan_gbp_to_attr);
@@ -675,35 +572,20 @@ index b4689cc..7983720 100644
          SCAN_FIELD_NESTED_FUNC("geneve(", struct geneve_scan, geneve,
                                 geneve_to_attr);
          SCAN_FIELD_NESTED_FUNC("flags(", uint16_t, tun_flags, tun_flags_to_attr);
-diff --git a/lib/packets.h b/lib/packets.h
-index a8ea24b..dc97333 100644
---- a/lib/packets.h
-+++ b/lib/packets.h
-@@ -49,7 +49,9 @@ struct flow_tnl {
-     ovs_be16 tp_dst;
-     ovs_be16 gbp_id;
-     uint8_t  gbp_flags;
--    uint8_t  pad1[5];        /* Pad to 64 bits. */
-+    uint8_t  gpe_np;
-+    uint8_t  gpe_flags;
-+    uint8_t  pad1[3];        /* Pad to 64 bits. */
-     struct tun_metadata metadata;
- };
- 
 diff --git a/tests/ofproto.at b/tests/ofproto.at
-index fbb6d71..6c7217d 100644
+index 6e55270..7b7f02b 100644
 --- a/tests/ofproto.at
 +++ b/tests/ofproto.at
-@@ -1775,7 +1775,7 @@ head_table () {
+@@ -2190,7 +2190,7 @@ head_table () {
        instructions: meter,apply_actions,clear_actions,write_actions,write_metadata,goto_table
        Write-Actions and Apply-Actions features:
          actions: output group set_field strip_vlan push_vlan mod_nw_ttl dec_ttl set_mpls_ttl dec_mpls_ttl push_mpls pop_mpls set_queue
 -        supported on Set-Field: tun_id tun_src tun_dst tun_ipv6_src tun_ipv6_dst tun_flags tun_gbp_id tun_gbp_flags tun_metadata0 dnl
 +        supported on Set-Field: tun_id tun_src tun_dst tun_ipv6_src tun_ipv6_dst tun_flags tun_gbp_id tun_gbp_flags tun_gpe_np tun_gpe_flags tun_metadata0 dnl
  tun_metadata1 tun_metadata2 tun_metadata3 tun_metadata4 tun_metadata5 tun_metadata6 tun_metadata7 tun_metadata8 tun_metadata9 tun_metadata10 tun_metadata11 tun_metadata12 tun_metadata13 tun_metadata14 tun_metadata15 tun_metadata16 tun_metadata17 tun_metadata18 tun_metadata19 tun_metadata20 tun_metadata21 tun_metadata22 tun_metadata23 tun_metadata24 tun_metadata25 tun_metadata26 tun_metadata27 tun_metadata28 tun_metadata29 tun_metadata30 tun_metadata31 tun_metadata32 tun_metadata33 tun_metadata34 tun_metadata35 tun_metadata36 tun_metadata37 tun_metadata38 tun_metadata39 tun_metadata40 tun_metadata41 tun_metadata42 tun_metadata43 tun_metadata44 tun_metadata45 tun_metadata46 tun_metadata47 tun_metadata48 tun_metadata49 tun_metadata50 tun_metadata51 tun_metadata52 tun_metadata53 tun_metadata54 tun_metadata55 tun_metadata56 tun_metadata57 tun_metadata58 tun_metadata59 tun_metadata60 tun_metadata61 tun_metadata62 tun_metadata63 dnl
- metadata in_port in_port_oxm pkt_mark ct_mark ct_label reg0 reg1 reg2 reg3 reg4 reg5 reg6 reg7 xreg0 xreg1 xreg2 xreg3 eth_src eth_dst vlan_tci vlan_vid vlan_pcp mpls_label mpls_tc mpls_ttl ip_src ip_dst ipv6_src ipv6_dst ipv6_label nw_tos ip_dscp nw_ecn nw_ttl arp_op arp_spa arp_tpa arp_sha arp_tha tcp_src tcp_dst udp_src udp_dst sctp_src sctp_dst icmp_type icmp_code icmpv6_type icmpv6_code nd_target nd_sll nd_tll
+ metadata in_port in_port_oxm pkt_mark ct_mark ct_label reg0 reg1 reg2 reg3 reg4 reg5 reg6 reg7 reg8 reg9 reg10 reg11 reg12 reg13 reg14 reg15 xreg0 xreg1 xreg2 xreg3 xreg4 xreg5 xreg6 xreg7 xxreg0 xxreg1 xxreg2 xxreg3 eth_src eth_dst vlan_tci vlan_vid vlan_pcp mpls_label mpls_tc mpls_ttl ip_src ip_dst ipv6_src ipv6_dst ipv6_label nw_tos ip_dscp nw_ecn nw_ttl arp_op arp_spa arp_tpa arp_sha arp_tha tcp_src tcp_dst udp_src udp_dst sctp_src sctp_dst icmp_type icmp_code icmpv6_type icmpv6_code nd_target nd_sll nd_tll
      matching:
-@@ -1790,6 +1790,8 @@ metadata in_port in_port_oxm pkt_mark ct_mark ct_label reg0 reg1 reg2 reg3 reg4
+@@ -2205,6 +2205,8 @@ metadata in_port in_port_oxm pkt_mark ct_mark ct_label reg0 reg1 reg2 reg3 reg4
        tun_flags: arbitrary mask
        tun_gbp_id: arbitrary mask
        tun_gbp_flags: arbitrary mask
@@ -713,7 +595,7 @@ index fbb6d71..6c7217d 100644
        tun_metadata1: arbitrary mask
        tun_metadata2: arbitrary mask
 diff --git a/tests/ovs-ofctl.at b/tests/ovs-ofctl.at
-index f26f622..dde603d 100644
+index cbb818e..2267be0 100644
 --- a/tests/ovs-ofctl.at
 +++ b/tests/ovs-ofctl.at
 @@ -17,6 +17,10 @@ for test_case in \
@@ -728,5 +610,5 @@ index f26f622..dde603d 100644
      'tun_metadata0=0/0x1                         NXM,OXM' \
      'tun_metadata0                               NXM,OXM' \
 -- 
-1.9.3
+2.1.0
 
