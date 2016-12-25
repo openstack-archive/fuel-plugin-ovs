@@ -2,19 +2,19 @@
 
 set -eux
 
-OVS_COMMIT=9f4ecd654dbcb88b15a424445184591fc887537e
-URL_OVS=https://github.com/openvswitch/ovs.git
-BUILD_DEB=${BUILD_DEB:-/deb}
+OVS_COMMIT=92043ab8ffd449dfd50c3e716d6db06d04af70d7
+OVS_VER=${OVS_VER:-2.6.90}
+BUILD_DEST=${BUILD_DEST:-/deb}
 BUILD_SRC="$(dirname `readlink -f $0`)"
-BUILD_DEST=${BUILD_DEST:-/tmp/ovs-dpdk}
+BUILD_HOME=${BUILD_HOME:-/tmp/ovs-dpdk}
 
 export DEB_BUILD_OPTIONS='parallel=8 nocheck'
 
 sudo apt-get -y install devscripts dpkg-dev git wget
 
-rm -rf ${BUILD_DEST}; mkdir -p ${BUILD_DEST}
+rm -rf ${BUILD_HOME}; mkdir -p ${BUILD_HOME}
 
-cd ${BUILD_DEST}
+cd ${BUILD_HOME}
 wget -c http://fast.dpdk.org/rel/dpdk-16.07.tar.xz
 xz -d dpdk-16.07.tar.xz; tar xvf dpdk-16.07.tar
 cd dpdk-16.07
@@ -37,11 +37,10 @@ sudo apt-get install -y debhelper \
                texlive-latex-extra
 debian/rules build; fakeroot debian/rules binary
 
-cd ${BUILD_DEST}
+cd ${BUILD_HOME}
 sudo dpkg -i *.deb
 apt-get download libxenstore3.0
 
-sudo apt-get build-dep openvswitch -y
 # copy from debian/control
 sudo apt-get install -y autoconf \
                automake \
@@ -64,14 +63,23 @@ sudo apt-get install -y autoconf \
 
 git clone https://github.com/openvswitch/ovs.git
 cd ovs; git checkout ${OVS_COMMIT}; rm -rf .git
-cd ${BUILD_DEST}; cp -r ovs ovs-dpdk
+cd ${BUILD_HOME}; cp -r ovs ovs-dpdk
 
 cd ovs-dpdk
 cp -r ${BUILD_SRC}/openvswitch-dpdk_2.5.90/debian .
+cat << EOF > debian/changelog
+openvswitch-dpdk (${OVS_VER}-1) unstable; urgency=low
+  [ Open vSwitch team ]
+  * support ovs-dpdk
+  - ovs + DPDK 16.07
+
+ -- Open vSwitch team <dev@openvswitch.org>  $(date --rfc-2822)
+EOF
+
 debian/rules build; fakeroot debian/rules binary
 
-cd ${BUILD_DEST}/ovs
+cd ${BUILD_HOME}/ovs
 debian/rules build; fakeroot debian/rules binary
 
-cp -r ${BUILD_DEST}/*.deb ${BUILD_DEB}
-rm -rf ${BUILD_DEST}
+cp -r ${BUILD_HOME}/*.deb ${BUILD_DEST}
+rm -rf ${BUILD_HOME}
