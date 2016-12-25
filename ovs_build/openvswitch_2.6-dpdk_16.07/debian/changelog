@@ -1,0 +1,6 @@
+openvswitch-dpdk (2.5.90-1) unstable; urgency=low
+  [ Open vSwitch team ]
+  * support ovs-dpdk
+  - ovs + DPDK 16.07
+
+ -- Open vSwitch team <dev@openvswitch.org>  Sun, 25 Dec 2016 17:43:04 -0500

@@ -2,7 +2,7 @@
 
 set -eux
 
-OVS_COMMIT=9f4ecd654dbcb88b15a424445184591fc887537e
+OVS_COMMIT=92043ab8ffd449dfd50c3e716d6db06d04af70d7
 URL_OVS=https://github.com/openvswitch/ovs.git
 BUILD_DEB=${BUILD_DEB:-/deb}
 BUILD_SRC="$(dirname `readlink -f $0`)"
@@ -67,7 +67,7 @@ cd ovs; git checkout ${OVS_COMMIT}; rm -rf .git
 cd ${BUILD_DEST}; cp -r ovs ovs-dpdk
 
 cd ovs-dpdk
-cp -r ${BUILD_SRC}/openvswitch-dpdk_2.5.90/debian .
+cp -r ${BUILD_SRC}/openvswitch_2.6-dpdk_16.07/debian .
 debian/rules build; fakeroot debian/rules binary
 
 cd ${BUILD_DEST}/ovs
