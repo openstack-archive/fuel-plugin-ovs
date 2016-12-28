@@ -66,7 +66,7 @@ cd ovs; git checkout ${OVS_COMMIT}; rm -rf .git
 cd ${BUILD_HOME}; cp -r ovs ovs-dpdk
 
 cd ovs-dpdk
-cp -r ${BUILD_SRC}/openvswitch-dpdk_2.5.90/debian .
+cp -r ${BUILD_SRC}/openvswitch_2.6-dpdk_16.07/debian .
 cat << EOF > debian/changelog
 openvswitch-dpdk (${OVS_VER}-1) unstable; urgency=low
   [ Open vSwitch team ]
