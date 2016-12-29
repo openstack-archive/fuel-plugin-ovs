@@ -1,11 +1,8 @@
 #!/bin/sh
 
-SOCKS5_IP=${SOCKS5_IP:-10.7.211.16}
+SOCKS5_IP=${SOCKS5_IP:-127.0.0.1}
 SOCKS5_PORT=${SOCKS5:-1080}
 RED_TCPORT=${RED_TCPORT:-6666}
-
-sudo apt-get update -y
-sudo apt-get install redsocks -y
 
 cat <<EOF | sudo tee /etc/redsocks.conf
 base {
