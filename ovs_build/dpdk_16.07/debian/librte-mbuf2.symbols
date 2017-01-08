@@ -1,0 +1,11 @@
+librte_mbuf.so.2 librte-mbuf2 #MINVER#
+ DPDK_2.0@DPDK_2.0 16.04
+ DPDK_2.1@DPDK_2.1 16.04
+ rte_ctrlmbuf_init@DPDK_2.0 16.04
+ rte_get_rx_ol_flag_name@DPDK_2.0 16.04
+ rte_get_tx_ol_flag_name@DPDK_2.0 16.04
+ rte_mbuf_sanity_check@DPDK_2.0 16.04
+ rte_pktmbuf_dump@DPDK_2.0 16.04
+ rte_pktmbuf_init@DPDK_2.0 16.04
+ rte_pktmbuf_pool_create@DPDK_2.1 16.04
+ rte_pktmbuf_pool_init@DPDK_2.0 16.04

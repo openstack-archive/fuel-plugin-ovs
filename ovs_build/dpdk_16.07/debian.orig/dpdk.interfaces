@@ -1,0 +1,13 @@
+#
+# <bus>		Currently only "pci" is supported
+# <id>		Device ID on the specified bus
+# <driver>	Driver to bind against (vfio-pci or uio_pci_generic)
+#
+# Be aware that the two dpdk compatible drivers uio_pci_generic and vfio-pci are
+# part of linux-image-extra-<VERSION> package.
+# This package is not always installed by default - for example in cloud-images.
+# So please install it in case you run into missing module issues.
+#
+# <bus>	<id>		<driver>
+# pci	0000:04:00.0	vfio-pci
+# pci	0000:04:00.1	uio_pci_generic

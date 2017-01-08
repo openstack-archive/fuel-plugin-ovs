@@ -1,0 +1,7 @@
+PACKAGE_NAME="dpdk-igb-uio"
+PACKAGE_VERSION="#MODULE_VERSION#"
+BUILT_MODULE_NAME[0]="igb_uio"
+MAKE="source /usr/share/dpdk/dpdk-sdk-env.sh; make MODULE_CFLAGS='-I/usr/include/dpdk -include /usr/include/dpdk/rte_config.h'"
+CLEAN="source /usr/share/dpdk/dpdk-sdk-env.sh; make clean"
+DEST_MODULE_LOCATION[0]="/updates/dkms"
+AUTOINSTALL="YES"

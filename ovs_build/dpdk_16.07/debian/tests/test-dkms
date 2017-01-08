@@ -1,0 +1,22 @@
+#!/bin/bash
+set -eu
+
+basedir=$(dirname "$0")
+. "${basedir}"/check-dpdk-supported-arch.sh
+
+if [ -d /var/lib/dkms ]; then
+    (cd /var/lib/dkms; find -name "make.log" -print0 | xargs -0 tar c) > "$ADT_ARTIFACTS/dkms-make-logs.tar"
+fi
+
+# check that the dkms build fine (on dep install), load and unload
+printf "\n\nChecking igb_uio\n"
+modinfo igb_uio
+modprobe igb_uio
+rmmod igb_uio
+echo "OK"
+
+printf "\n\nChecking igb_uio\n"
+modinfo rte_kni
+modprobe rte_kni
+rmmod rte_kni
+echo "OK"

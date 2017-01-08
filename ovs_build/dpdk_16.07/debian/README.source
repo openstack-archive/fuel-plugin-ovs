@@ -1,0 +1,42 @@
+How to build the package - for CI systems, etc
+
+1 - install all the build-dependencies as listed in the debian/control file.
+    From the repo top-level directory:
+
+apt-get install `dpkg-checkbuilddeps |& sed "s/.*://g" |& sed "s/(...[0-9]*)//g"`
+
+2 - run debuild (the flags will avoid signing the built packages):
+    From the repo top-level directory:
+
+debuild -uc -us
+
+***************
+
+quilt patches format
+
+Note that we use the dquilt format for patches as outlined on Debian's wiki:
+https://www.debian.org/doc/manuals/maint-guide/modify.en.html#quiltrc
+
+Please consider using the same format to avoid excessive churn when adding or
+refreshing patches.
+
+Add the following to your ~/.bashrc (or equivalent):
+
+alias dquilt="quilt --quiltrc=${HOME}/.quiltrc-dpkg"
+complete -F _quilt_completion $_quilt_complete_opt dquilt
+
+And then create a new ~/.quiltrc-dpkg file with content:
+
+d=. ; while [ ! -d $d/debian -a `readlink -e $d` != / ]; do d=$d/..; done
+if [ -d $d/debian ] && [ -z $QUILT_PATCHES ]; then
+    # if in Debian packaging tree with unset $QUILT_PATCHES
+    QUILT_PATCHES="debian/patches"
+    QUILT_PATCH_OPTS="--reject-format=unified"
+    QUILT_DIFF_ARGS="-p ab --no-timestamps --no-index --color=auto"
+    QUILT_REFRESH_ARGS="-p ab --no-timestamps --no-index"
+    QUILT_COLORS="diff_hdr=1;32:diff_add=1;34:diff_rem=1;31:diff_hunk=1;33:diff_ctx=35:diff_cctx=33"
+    if ! [ -d $d/debian/patches ]; then mkdir $d/debian/patches; fi
+fi
+
+Open a new terminal or souce ~/.bashrc, and then you will be able to use
+dquilt.

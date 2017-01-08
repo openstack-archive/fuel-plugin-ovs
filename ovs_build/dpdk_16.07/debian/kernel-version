@@ -1,0 +1,61 @@
+#!/usr/bin/perl
+#
+# Copyright (c)  2009-2016 Andreas Beckmann <anbe@debian.org>
+#                2010-2016 Russ Allbery <rra@debian.org>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this script.  If not, see <http://www.gnu.org/licenses/>.
+#
+# This program comes from:
+# https://anonscm.debian.org/viewvc/pkg-nvidia/packages/nvidia-graphics-drivers/trunk/debian/module/debian/kernel-version?view=markup
+# The original copyright and license (GPL2+) can be found at:
+# https://anonscm.debian.org/viewvc/pkg-nvidia/packages/nvidia-graphics-drivers/trunk/debian/copyright?view=markup
+#
+# Extract the kernel version from the kernel version header file.  Takes the
+# kernel source path as its only argument.  If the version header couldn't be
+# found, print nothing and exit quietly.
+
+use warnings;
+
+my $ksrc = shift;
+unless ($ksrc && (-f "$ksrc/include/linux/version.h" || -f "$ksrc/include/generated/uapi/linux/version.h")) {
+    exit 0;
+}
+my $found = 0;
+my $line;
+if (open (VERSION, "$ksrc/include/linux/version.h")) {
+    if (defined(VERSION) && ($line = <VERSION>)) {
+        if ($line =~ /"(.+)"/) {
+            print "$1\n";
+            $found = 1;
+        }
+    }
+}
+exit 0 if $found;
+if (open (VERSION, "$ksrc/include/generated/utsrelease.h")) {
+    if (defined(VERSION) && ($line = <VERSION>)) {
+        if ($line =~ /UTS_RELEASE *"(.+)"/) {
+            print "$1\n";
+            $found = 1;
+        }
+    }
+}
+exit 0 if $found;
+# kernel.release is no longer useful since 3.1.0
+unless (open (VERSION, "$ksrc/include/config/kernel.release")) {
+    exit 0;
+}
+if (defined(VERSION) && ($line = <VERSION>)) {
+    print "$line";
+}
+exit 0;

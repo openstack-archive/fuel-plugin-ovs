@@ -1,0 +1,5 @@
+librte_pmd_ring.so.2 librte-pmd-ring2 #MINVER#
+ DPDK_2.0@DPDK_2.0 16.04
+ DPDK_2.2@DPDK_2.2 16.04
+ rte_eth_from_ring@DPDK_2.2 16.04
+ rte_eth_from_rings@DPDK_2.0 16.04

@@ -1,0 +1,35 @@
+Description: Linux kernel v4.8 removes macro DEFINE_PCI_DEVICE_TABLE
+
+Linux: 7e9321599011 ("treewide: remove references to the now unnecessary
+DEFINE_PCI_DEVICE_TABLE")
+
+Replaced macro with its value in kni ethtool drivers.
+
+Signed-off-by: Ferruh Yigit <ferruh.yigit@intel.com>
+
+Origin: Upstream, http://dpdk.org/dev/patchwork/patch/15717/
+Author: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+Last-Update: 2016-09-19
+
+--- a/lib/librte_eal/linuxapp/kni/ethtool/igb/igb_main.c
++++ b/lib/librte_eal/linuxapp/kni/ethtool/igb/igb_main.c
+@@ -76,7 +76,7 @@
+ static const char igb_copyright[] =
+ 				"Copyright (c) 2007-2013 Intel Corporation.";
+ 
+-static DEFINE_PCI_DEVICE_TABLE(igb_pci_tbl) = {
++const struct pci_device_id igb_pci_tbl[] = {
+ 	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_I354_BACKPLANE_1GBPS) },
+ 	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_I354_SGMII) },
+ 	{ PCI_VDEVICE(INTEL, E1000_DEV_ID_I354_BACKPLANE_2_5GBPS) },
+--- a/lib/librte_eal/linuxapp/kni/ethtool/ixgbe/ixgbe_main.c
++++ b/lib/librte_eal/linuxapp/kni/ethtool/ixgbe/ixgbe_main.c
+@@ -86,7 +86,7 @@
+  * { Vendor ID, Device ID, SubVendor ID, SubDevice ID,
+  *   Class, Class Mask, private data (not used) }
+  */
+-DEFINE_PCI_DEVICE_TABLE(ixgbe_pci_tbl) = {
++const struct pci_device_id ixgbe_pci_tbl[] = {
+ 	{PCI_VDEVICE(INTEL, IXGBE_DEV_ID_82598)},
+ 	{PCI_VDEVICE(INTEL, IXGBE_DEV_ID_82598AF_DUAL_PORT)},
+ 	{PCI_VDEVICE(INTEL, IXGBE_DEV_ID_82598AF_SINGLE_PORT)},

@@ -19,6 +19,14 @@ wget -c http://fast.dpdk.org/rel/dpdk-16.07.tar.xz
 xz -d dpdk-16.07.tar.xz; tar xvf dpdk-16.07.tar
 cd dpdk-16.07
 cp -r ${BUILD_SRC}/dpdk_16.07/debian .
+cat << EOF >> debian/changelog
+dpdk (16.07-1ubuntu5~u1604) xenial; urgency=low
+
+  * Rebuild debian package
+  * update librte-eal2.symbols
+
+ -- Ruijing Guo <ruijing.guo@intel.com> $(date --rfc-2822)
+EOF
 
 # copy from debian/control
 sudo apt-get install -y debhelper \
@@ -35,10 +43,10 @@ sudo apt-get install -y debhelper \
                python-sphinx  \
                texlive-fonts-recommended  \
                texlive-latex-extra
-debian/rules build; fakeroot debian/rules binary
+debian/rules build; fakeroot debian/rules binary-arch
 
 cd ${BUILD_HOME}
-sudo dpkg -i *.deb
+sudo dpkg -i dpdk-dev*.deb
 apt-get download libxenstore3.0
 
 # copy from debian/control

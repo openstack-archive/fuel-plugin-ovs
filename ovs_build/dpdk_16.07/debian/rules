@@ -1,51 +1,145 @@
 #!/usr/bin/make -f
 # See debhelper(7) (uncomment to enable)
 # output every command that modifies files on the build system.
-#export DH_VERBOSE = 1
+export DH_VERBOSE=1
+export DH_OPTIONS=-v
+
+VERSION := $(shell dpkg-parsechangelog | sed -nr '/^Version:/s/Version: (.*:)?(.*)-(.*)/\2/p')
 
 # see EXAMPLES in dpkg-buildflags(1) and read /usr/share/dpkg/*
-DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/default.mk
 
 DEB_HOST_GNU_CPU := $(shell dpkg-architecture -qDEB_HOST_GNU_CPU)
 
 # see FEATURE AREAS in dpkg-buildflags(1)
-export DEB_BUILD_MAINT_OPTIONS = hardening=+all
-
-# build with debug symbols, dh_strip will create -dgbsyms packages by that
-export EXTRA_CFLAGS = -g -march=corei7-avx -mno-movbe -mno-abm -mno-fma -mno-bmi -mno-bmi2 -mno-avx2 -mno-lzcnt -mtune=corei7-avx
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all,-pie
 
 # see ENVIRONMENT in dpkg-buildflags(1)
 # package maintainers to append CFLAGS
-#export DEB_CFLAGS_MAINT_APPEND  = -Wall -pedantic
+export DEB_CFLAGS_MAINT_APPEND  = -fPIC
 # package maintainers to append LDFLAGS
 #export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
 
-DPDK_CONFIG  = "$(DEB_HOST_GNU_CPU)-native-linuxapp-gcc"
+include /usr/share/dpkg/buildflags.mk
+export EXTRA_CFLAGS=$(CFLAGS)
+export EXTRA_CPPFLAGS=$(CPPFLAGS)
+export HOST_EXTRA_CFLAGS=$(CFLAGS)
+export HOST_EXTRA_CPPFLAGS=$(CPPFLAGS)
+# need to be stripped as DPDK build system adds them and it would be -Wl,-Wl,opt
+export EXTRA_LDFLAGS=$(shell echo $(LDFLAGS) | sed 's/-Wl,//g')
+# HOST_CC build system does not add -Wl ...
+export EXTRA_HOST_LDFLAGS=$(LDFLAGS)
+
+export RTE_DEVEL_BUILD=n
+
+# People rebuilding this package can overwrite DPDK_CONFIG, RTE_MACHINE and
+# RTE_TARGET via DEB_BUILD_OPTIONS if they like
+ifneq (,$(filter dpdk_config=%,$(DEB_BUILD_OPTIONS)))
+    DPDK_CONFIG ?= $(patsubst dpdk_config=%,%,$(filter dpdk_config=%,$(DEB_BUILD_OPTIONS)))
+endif
+ifneq (,$(filter rte_machine=%,$(DEB_BUILD_OPTIONS)))
+    RTE_MACHINE ?= $(patsubst rte_machine=%,%,$(filter rte_machine=%,$(DEB_BUILD_OPTIONS)))
+endif
+ifneq (,$(filter rte_target=%,$(DEB_BUILD_OPTIONS)))
+    RTE_TARGET ?= $(patsubst rte_target=%,%,$(filter rte_target=%,$(DEB_BUILD_OPTIONS)))
+endif
+
+ifneq (,$(filter $(DEB_HOST_ARCH), arm64))
+DPDK_CONFIG ?= "arm64-armv8a-linuxapp-gcc"
+RTE_MACHINE ?= "armv8a"
+RTE_TARGET ?= "arm64-armv8a-linuxapp-gcc"
+else
+DPDK_CONFIG ?= "$(DEB_HOST_GNU_CPU)-native-linuxapp-gcc"
+RTE_MACHINE ?= "default"
+RTE_TARGET ?= "$(DEB_HOST_GNU_CPU)-default-linuxapp-gcc"
+endif
 DPDK_STATIC_DIR = "debian/build/static-root"
 DPDK_SHARED_DIR = "debian/build/shared-root"
 
-clean:
-	dh_testdir
-	rm -rf debian/build debian/tmp
-	dh_clean
+# kernel_modules can be passed via DEB_BUILD_OPTIONS to enable building the
+# optional binary kernel modules package. By default it will be built against
+# the current kernel, or ksrc can be passed with a path to the target kernel
+# sources instead.
+ifeq (,$(findstring kernel_modules,$(DEB_BUILD_OPTIONS)))
+DPDK_CONFIG_BUILD_KMOD=n
+KSRC=""
+else
+ifneq (,$(filter ksrc=%,$(DEB_BUILD_OPTIONS)))
+    KSRC := $(patsubst ksrc=%,%,$(filter ksrc=%,$(DEB_BUILD_OPTIONS)))
+else
+    KSRC := /lib/modules/$(shell uname -r)/build
+endif
 
-build-config:
-	dh_testdir
-	sed -i '/RTE_MACHINE_CPUFLAG_AVX2/,+13 s/^/#/' lib/librte_acl/Makefile
-	sed -i '/__AVX2__/,+2 s/^/#/' mk/rte.cpuflags.mk
-	$(MAKE) O=$(DPDK_STATIC_DIR) T=$(DPDK_CONFIG) config
-	sed -ri 's,(RTE_MACHINE=).*,\1default,' \
-	        $(DPDK_STATIC_DIR)/.config
+KVERS := $(shell perl debian/kernel-version $(KSRC))
+export KVERS
 
-build-indep: build-config
-	dh_testdir
-	$(MAKE) O=$(DPDK_STATIC_DIR) doc-api-html doc-guides-html
+DPDK_CONFIG_BUILD_KMOD=y
 
-build-arch: build-config
-	dh_testdir
-	echo "CPUFLAGS_LIST := -DRTE_COMPILE_TIME_CPUFLAGS=" > mk/rte.cpuflags.mk
-	$(MAKE) O=$(DPDK_STATIC_DIR) build
+# Since the binary module package is generated at build time depending on the
+# local kernel version, we have to append the new package in d/control.
+# We cannot use a separate control file since that wouldn't work with
+# dpkg-genchanges, and also would require a lot of overrides for debhelpers.
+get_built_using	?= $(filter-out (=),$(shell dpkg-query -f='$${source:Package} (=$${source:Version})' -W $1))
+
+override_dh_gencontrol:
+	dh_gencontrol
+	dh_gencontrol -p dpdk-modules-$(KVERS) -- \
+		-v`cat debian/VERSION` \
+		-V'built:using:kernel=$(call get_built_using,linux-headers-$(KVERS))'
+
+build:
+	@if [ x"$(KVERS)" = x ] ; then \
+	    echo 'No version in $(KSRC)/include/linux/version.h' >&2; \
+	    exit 1; \
+	fi
+	sh debian/prep-modules $(KSRC)
+	cat debian/control.modules >> debian/control
+	dh $@ --with python2,dkms
+endif
+
+%:
+	dh $@ --with python2,dkms
+
+override_dh_auto_clean:
+	rm -rf debian/build debian/tmp debian/dpdk-modules-* \
+		debian/control.modules debian/VERSION
+	sed -i '/Package: dpdk-modules-/,/`tail -n1 debian/control.modules.in`/d' debian/control
+	test -L config/defconfig_$(DPDK_CONFIG) && rm -f config/defconfig_$(DPDK_CONFIG) || true
+
+override_dh_auto_configure:
+	# Add support for a custom defconfig file in the debian directory.
+ifneq (,$(filter dpdk_config=%,$(DEB_BUILD_OPTIONS)))
+	test -e config/defconfig_$(DPDK_CONFIG) || ln -fs ../debian/defconfig_$(DPDK_CONFIG) config/defconfig_$(DPDK_CONFIG)
+endif
+	# report dpkg-buildflags status to build log
+	dpkg-buildflags --status
+	echo EXTRA_CFLAGS $$EXTRA_CFLAGS
+	echo EXTRA_LDFLAGS: $$EXTRA_LDFLAGS
+	$(MAKE) V=$(DH_VERBOSE) O=$(DPDK_STATIC_DIR) T=$(DPDK_CONFIG) config
+ifeq (,$(filter dpdk_config=%,$(DEB_BUILD_OPTIONS)))
+	sed -ri -e 's,(RTE_MACHINE=).*,\1$(RTE_MACHINE),' \
+		-e 's,(RTE_NEXT_ABI=).*,\1n,' \
+		-e 's,(CONFIG_RTE_EAL_IGB_UIO=).*,\1$(DPDK_CONFIG_BUILD_KMOD),' \
+		-e 's,(CONFIG_RTE_KNI_KMOD=).*,\1$(DPDK_CONFIG_BUILD_KMOD),' \
+		-e 's,(LIBRTE_PMD_PCAP=).*,\1y,' \
+		-e 's,(LIBRTE_PMD_XENVIRT=).*,\1y,' \
+		-e 's,(CONFIG_RTE_EAL_PMD_PATH=).*,\1"/usr/lib/$(shell dpkg-architecture -qDEB_HOST_MULTIARCH)/dpdk-pmds/",' \
+		$(DPDK_STATIC_DIR)/.config
+endif
+	dh_auto_configure
+
+override_dh_auto_build-indep:
+	$(MAKE) V=$(DH_VERBOSE) O=$(DPDK_STATIC_DIR) doc-api-html doc-guides-html \
+		doc-guides-man
+
+override_dh_auto_install-indep:
+	# Package: dpdk-doc
+	# All files based on the install-doc rule (includes examples)
+	$(MAKE) V=$(DH_VERBOSE) O=$(DPDK_STATIC_DIR) prefix=/usr \
+		DESTDIR=debian/dpdk-doc install-doc
+
+override_dh_auto_build-arch:
+	$(MAKE) V=$(DH_VERBOSE) O=$(DPDK_STATIC_DIR) RTE_KERNELDIR=$(KSRC) build
 	# Unfortunately the decision about having static or shared libraries is
 	# made for the whole build, which then produces only .a or .so files
 	# (but not both).
@@ -57,99 +151,97 @@ build-arch: build-config
 	# used to get static libraries.
 	cp -a $(DPDK_STATIC_DIR) $(DPDK_SHARED_DIR)
 	sed -ri 's,(RTE_BUILD_SHARED_LIB=).*,\1y,' \
-	        $(DPDK_SHARED_DIR)/.config
-	$(MAKE) O=$(DPDK_SHARED_DIR) build
+		$(DPDK_SHARED_DIR)/.config
+	$(MAKE) V=$(DH_VERBOSE) O=$(DPDK_SHARED_DIR) RTE_KERNELDIR=$(KSRC) build
 
-build: build-arch build-indep
-
-binary-indep: PACKAGE_NAME=dpdk-doc
-binary-indep: DOCDIR=usr/share/doc/dpdk
-binary-indep: export DH_OPTIONS=--indep
-binary-indep:
-	dh_testroot
-	dh_prep
-	dh_testdir
-	dh_installdirs
-	dh_install
-	dh_installdocs
-	dh_installchangelogs
-	dh_lintian
-	# Package: dpdk-doc
-	# All files based on the install-doc rule (includes examples)
-	$(MAKE) O=$(DPDK_SHARED_DIR) prefix=/usr \
-		DESTDIR=debian/dpdk-doc install-doc
-	dh_link
-	dh_compress
-	dh_fixperms
-	dh_installdeb
-	dh_gencontrol
-	dh_md5sums
-	dh_builddeb
-
-binary-arch: LIBDIR=usr/lib/$(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
-binary-arch: export DH_OPTIONS=--arch
-binary-arch:
-	dh_testroot
-	dh_prep
-	dh_testdir
-	dh_installdirs
-	dh_install
-	dh_installdocs
-	dh_installchangelogs
-	dh_lintian
-	dh_systemd_enable
-	dh_installinit --no-start --no-restart-on-upgrade
-	dh_systemd_start --no-start --no-restart-on-upgrade
+override_dh_auto_install-arch: LIBDIR=usr/lib/$(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+override_dh_auto_install-arch:
 	# Package: dpdk (runtime)
-	$(MAKE) O=$(DPDK_STATIC_DIR) prefix=/usr \
+	$(MAKE) V=$(DH_VERBOSE) O=$(DPDK_STATIC_DIR) prefix=/usr \
 		DESTDIR=debian/dpdk install-runtime
-	$(MAKE) O=$(DPDK_SHARED_DIR) prefix=/usr \
+	$(MAKE) V=$(DH_VERBOSE) O=$(DPDK_SHARED_DIR) prefix=/usr \
 		DESTDIR=debian/dpdk install-runtime
+	mkdir -p debian/dpdk/etc/dpdk
 	cp debian/dpdk.interfaces debian/dpdk/etc/dpdk/interfaces
-	#rm debian/dpdk/usr/sbin/dpdk_nic_bind
-	ln -s /usr/share/dpdk/tools/dpdk_nic_bind.py \
-		debian/dpdk/sbin/dpdk_nic_bind
-	# Package: libdpdk0 (bare runtime libs)
-	mkdir -p debian/libdpdk0/$(LIBDIR)
-	# NOTE so far upstream dpdk has not settled on really versioning the
-	# combined lib. There are discussions ongoing and various alternative
-	# approaches.
-	# We have to wait until that is clarified upstream (in a follow on dpdk
-	# version).
-	# One likely solution will make us ship the non combined .so and a
-	# linker script which replaces the combined lib.
-	# To easen package management a few notes how this will change if that
-	# happens:
-	# NOTE: linker script - this becomes a nop (linker skript has no sover
-	# on its own)
-	rm debian/dpdk/usr/lib/libdpdk.so
-	cp -a $(DPDK_SHARED_DIR)/lib/* debian/libdpdk0/$(LIBDIR)/
-	# NOTE: linker script - insert basenames loop for all .so's
-	# NOTE: linker script - we also will need multiple symbol files then
+	rm debian/dpdk/usr/sbin/dpdk-devbind
+	mkdir -p debian/dpdk/sbin
+	ln -s /usr/share/dpdk/tools/dpdk-devbind.py \
+		debian/dpdk/sbin/dpdk-devbind
+	# do not provide dpdk-pmdinfo in path for now  (LP: #1630073)
+	rm debian/dpdk/usr/bin/dpdk-pmdinfo
 	# Package: dpdk-dev (build environment)
-	$(MAKE) O=$(DPDK_SHARED_DIR) prefix=/usr \
+	$(MAKE) V=$(DH_VERBOSE) O=$(DPDK_SHARED_DIR) prefix=/usr \
 		DESTDIR=debian/dpdk-dev install-sdk
 	cp $(DPDK_SHARED_DIR)/.config debian/dpdk-dev/usr/share/dpdk/config
-	# Package: libdpdk-dev (bare headers and static devel libs)
-	mkdir -p debian/libdpdk-dev/usr/lib/
-	# NOTE: linker script - insert basenames loop for all .a's
-	#ln -s /$(LIBDIR)/libdpdk.so \
-	#    debian/libdpdk-dev/$(LIBDIR)/libdpdk.so.0
-	cp -a $(DPDK_STATIC_DIR)/lib/* debian/libdpdk-dev/usr/lib/
+	sed -e 's/SDK_TARGET/$(RTE_TARGET)/' debian/dpdk-sdk-env.sh.in > \
+		debian/dpdk-dev/usr/share/dpdk/dpdk-sdk-env.sh
+	# Package: libdpdk-dev (bare headers, static devel libs and linker
+	# script)
+	mkdir -p debian/libdpdk-dev/$(LIBDIR)
+	# linker script
+	mv debian/dpdk/usr/lib/libdpdk.so debian/libdpdk-dev/$(LIBDIR)/
+	# includes
+	mkdir -p debian/libdpdk-dev/usr/include
 	mv debian/dpdk-dev/usr/include/dpdk debian/libdpdk-dev/usr/include/
-	# NOTE: linker script - package instead of removing all sublibs
-	rm -rf debian/dpdk/usr/lib*
-	dh_python2
-	dh_perl
-	dh_link
-	dh_compress
-	dh_fixperms
-	dh_strip
-	dh_makeshlibs
-	dh_shlibdeps
-	dh_installdeb
-	dh_gencontrol
-	dh_md5sums
-	dh_builddeb
+	# all static libs are in the dev package
+	mv debian/dpdk/usr/lib/lib*.a debian/libdpdk-dev/$(LIBDIR)/
+	# symlinks to last .so's are in the non versioned libdpdk-dev as well
+	# this allows multiple libdpdk-<NAME><VER> at different VER concurrently
+	# libdpdk-dev depends on all sublibs so symlinks are never broken
+	mv debian/dpdk/usr/lib/*.so debian/libdpdk-dev/$(LIBDIR)/
+	# Package(s): libdpdk-<NAME><VER> (bare runtime libs)
+	for lib in $$(ls -1 debian/dpdk/usr/lib/*.so.*); do \
+	  BN=$$(basename $${lib}); \
+	  VER=$$(echo $${BN} | sed -e 's/^.*\.so\.//'); \
+	  LN=$$(echo $${BN} | sed -e 's/\.so\.[0-9]*$$//' | tr '_' '-'); \
+	  if echo $${LN} | grep -q ".*[0-9]$$"; then \
+	    PKG=$${LN}-$${VER}; \
+	  else \
+	    PKG=$${LN}$${VER}; \
+	  fi; \
+	  LIBF="$$(basename $${lib})"; \
+	  LIBD="debian/$${PKG}/$(LIBDIR)"; \
+	  echo "moving $${lib} for library $${PKG}"; \
+	  mkdir -p $${LIBD}; \
+	  mv $${lib} $${LIBD}; \
+	  if [ "$${LIBF#librte_pmd_}x" != "$${LIBF}x" ]; then \
+	    mkdir -p $${LIBD}/dpdk-pmds; \
+	    echo "PMD: linking $${LIBF} into RTE_EAL_PMD_PATH at $${LIBD}/dpdk-pmds/"; \
+	    ln -s --relative --target-directory=$${LIBD}/dpdk-pmds/ $${LIBD}/$${LIBF}; \
+	  fi; \
+	  if [ "$${LIBF#librte_eal}x" != "$${LIBF}x" ]; then \
+	    mkdir -p $${LIBD}/dpdk-pmds; \
+	  fi; \
+	done
+	# pkg-config
+	mkdir -p debian/libdpdk-dev/$(LIBDIR)/pkgconfig
+	LIBS=$$(sed -e 's/GROUP ( \(.*\) )/\1/' -e 's/lib/-l/g' -e 's/\.so//g' \
+		$(CURDIR)/debian/libdpdk-dev/$(LIBDIR)/libdpdk.so); \
+	sed -e "s/@DPDK_LIBS@/$${LIBS}/" -e "s/@VERSION@/$(VERSION)/" \
+		debian/libdpdk.pc.in > debian/libdpdk-dev/$(LIBDIR)/pkgconfig/libdpdk.pc
+	# Package: dpdk-igb-uio-dkms
+	mkdir -p debian/dpdk-igb-uio-dkms/usr/src/dpdk-igb-uio-$(VERSION)
+	cp lib/librte_eal/linuxapp/igb_uio/* \
+		debian/dpdk-igb-uio-dkms/usr/src/dpdk-igb-uio-$(VERSION)
+	# Package: dpdk-rte-kni-dkms
+	mkdir -p debian/dpdk-rte-kni-dkms/usr/src/dpdk-rte-kni-$(VERSION)
+	cp -a lib/librte_eal/linuxapp/kni/* \
+		debian/dpdk-rte-kni-dkms/usr/src/dpdk-rte-kni-$(VERSION)
+ifneq (,$(KVERS))
+	# Package: dpdk-modules-<kernel version>
+	mkdir -p debian/dpdk-modules-$(KVERS)/lib/modules/$(KVERS)/kernel/drivers/net
+	cp -a debian/build/shared-root/kmod/* \
+		debian/dpdk-modules-$(KVERS)/lib/modules/$(KVERS)/kernel/drivers/net
+endif
 
-binary: binary-arch binary-indep
+override_dh_dkms:
+	dh_dkms -V $(VERSION)
+
+override_dh_installinit:
+	dh_installinit --no-start --no-restart-on-upgrade
+
+override_dh_systemd_start:
+	dh_systemd_start --no-start --no-restart-on-upgrade
+
+override_dh_auto_test:
+

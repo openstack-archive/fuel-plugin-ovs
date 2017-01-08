@@ -1,0 +1,9 @@
+librte_ip_frag.so.1 librte-ip-frag1 #MINVER#
+ DPDK_2.0@DPDK_2.0 16.04
+ rte_ip_frag_free_death_row@DPDK_2.0 16.04
+ rte_ip_frag_table_create@DPDK_2.0 16.04
+ rte_ip_frag_table_statistics_dump@DPDK_2.0 16.04
+ rte_ipv4_frag_reassemble_packet@DPDK_2.0 16.04
+ rte_ipv4_fragment_packet@DPDK_2.0 16.04
+ rte_ipv6_frag_reassemble_packet@DPDK_2.0 16.04
+ rte_ipv6_fragment_packet@DPDK_2.0 16.04

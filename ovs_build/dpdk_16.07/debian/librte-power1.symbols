@@ -1,0 +1,14 @@
+librte_power.so.1 librte-power1 #MINVER#
+ DPDK_2.0@DPDK_2.0 16.04
+ rte_power_exit@DPDK_2.0 16.04
+ rte_power_freq_down@DPDK_2.0 16.04
+ rte_power_freq_max@DPDK_2.0 16.04
+ rte_power_freq_min@DPDK_2.0 16.04
+ rte_power_freq_up@DPDK_2.0 16.04
+ rte_power_freqs@DPDK_2.0 16.04
+ rte_power_get_env@DPDK_2.0 16.04
+ rte_power_get_freq@DPDK_2.0 16.04
+ rte_power_init@DPDK_2.0 16.04
+ rte_power_set_env@DPDK_2.0 16.04
+ rte_power_set_freq@DPDK_2.0 16.04
+ rte_power_unset_env@DPDK_2.0 16.04

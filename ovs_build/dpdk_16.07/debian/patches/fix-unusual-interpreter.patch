@@ -1,0 +1,35 @@
+Description: examples: fix unusual-interpreter v2
+
+*Update in v2*
+- use #!/usr/bin/env python as usually recommended and suggested in the
+  discussion
+
+Due to regular lintian checks in Debian packaging it surfaced that these
+two scripts had a space in their #! statement which renders it to be
+human, but not shell readable.
+
+Fixes: 8673a3e8 ("examples/ip_pipeline: add config diagram generator")
+Fixes: fa667b46 ("examples/ip_pipeline: add core mappings script")
+
+This gets rid of lintian warning "W: dpdk-doc: unusual-interpreter"
+
+Forwarded: yes
+Author: Christian Ehrhardt <christian.ehrhardt@canonical.com>
+Last-Update: 2016-08-02
+
+--- a/examples/ip_pipeline/config/diagram-generator.py
++++ b/examples/ip_pipeline/config/diagram-generator.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/python2
++#!/usr/bin/env python
+ 
+ #   BSD LICENSE
+ #
+--- a/examples/ip_pipeline/config/pipeline-to-core-mapping.py
++++ b/examples/ip_pipeline/config/pipeline-to-core-mapping.py
+@@ -1,4 +1,4 @@
+-#! /usr/bin/python2
++#!/usr/bin/env python
+ 
+ #   BSD LICENSE
+ #

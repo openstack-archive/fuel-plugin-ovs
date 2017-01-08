@@ -88,8 +88,8 @@ resetservice() {
     echo 3 > /proc/sys/vm/drop_caches
 
     # stopping and resetting Service
-    systemctl stop dpdk.service
-    systemctl reset-failed dpdk.service
+    systemctl stop dpdk.service || /bin/true
+    systemctl reset-failed dpdk.service || /bin/true
 
     echo "Unmounting all potential hugetlbfs mounts"
     awk '/hugetlbfs/ {print $2}' /proc/mounts | while read hugetlbmount; do

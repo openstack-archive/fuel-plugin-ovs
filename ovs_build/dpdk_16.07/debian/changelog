@@ -1,3 +1,528 @@
-dpdk (16.07-1) unstable; urgency=low
-  * DPDK 16.07
- -- DPDK team <dev@dpdk.org>  Sat, 03 Sep 2016 20:00:00 +0200
+dpdk (16.07-0ubuntu5~u1604+mos1) mos; urgency=low
+
+  * Rebuild debian package.
+  * Add fake dpdk-dkms package
+
+ -- Ivan Suzdal <mos-linux@mirantis.com>  Thu, 08 Dec 2016 15:06:10 +0000
+
+dpdk (16.07-0ubuntu5~cloud0) xenial-newton; urgency=medium
+
+  * New update for the Ubuntu Cloud Archive.
+
+ -- Openstack Ubuntu Testing Bot <openstack-testing-bot@ubuntu.com>  Tue, 04 Oct 2016 12:12:07 +0000
+
+dpdk (16.07-0ubuntu5) yakkety; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * Fix component mismatch by dropping the optional dpdk-pmdinfo tool
+    (LP: #1630073).
+
+  [ Gowrishankar Muthukrishnan ]
+  * update d/p/dpdk-dev-examples-ip_pipeline-fix-pmd-driver-parameter.patch to
+    fix dlopen issue (LP: #1630119)
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 04 Oct 2016 09:27:54 +0200
+
+dpdk (16.07-0ubuntu4) yakkety; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * merge of latest deb_dpdk packaging
+  * Fix d/p/fix-vhost-user-socket-permission.patch for dpdk 16.07
+    server/client sockets (LP: #1625542).
+  * d/rules utilize RTE_EAL_PMD_PATH to autoload pmd drivers (LP: #1628419)
+    - d/dpdk-doc.README.Debian document usage of RTE_EAL_PMD_PATH
+    - d/control let the runtime of dpdk recommend the pmd drivers to make
+      them available for auto-probing devices
+  * d/control add python-elftools and hwdata dependencies to dpdk for the tool
+    dpdk-pmdinfo (LP: #1628410).
+
+  [ Luca Boccassi ]
+  * Fix d/watch file to point to fast.dpdk.org/rel
+  * Allow DPDK_CONFIG, RTE_MACHINE, RTE_TARGET overrides via DEB_BUILD_OPTIONS
+  * Use ?= to allow env var overrides in d/rules
+
+  [ Santiago RR ]
+  * debian/control:
+    - dpdk: recommends dkms packages (dpdk-igb-uio-dkms, dpdk-rte-kni-dkms) on
+      arm64 and suggest for other architectures.
+
+  [ Gowrishankar Muthukrishnan ]
+  * d/p/dpdk-dev-examples-ip_pipeline-fix-pmd-driver-parameter.patch to make
+    ip_pipeline work properly with -d eal parameter (LP: #1629186)
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Thu, 29 Sep 2016 17:19:05 +0200
+
+dpdk (16.07-0ubuntu3) yakkety; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * merge of latest deb_dpdk packaging for dpdk 16.07 (LP: #1625009)
+    - excluding ppc enablement due to being post-FF
+    - mix and match of changelogs as it is not yet uploaded to Debian
+  * add man pages for installed binaries
+    - add backport of patches from upstream
+    - call generation of man pages in d/rules
+  * d/t/test-dkms retain dkms logs for debugging (LP: #1625028)
+  * fix rte_kni dkms build with kernel >= 4.8 (LP: #1625021)
+    - d/p/dpdk-dev-v2-kni-fix-build-with-kernel-4.8.patch replaced macro with
+      its value in kni ethtool drivers.
+
+  [ Luca Boccassi ]
+  * Add optional binary kernel modules package, disabled by default (build with
+    DEB_BUILD_OPTIONS=kernel_modules to enable). If enabled will build kernel
+    modules against the local, current kernel version (override by adding
+    ksrc=<path/to/kernel/sources> to DEB_BUILD_OPTIONS) into a
+    dpdk-modules-<kernel version> package
+  * Set HOST_/EXTRA/CPP/C/LDFLAGS in d/rules so that all built objects pick up
+    all flags set by the dpkg environment, like hardening flags
+  * Add rte-compile-pre-cppflags.patch to make all DPDK objects pick up the
+    user specified or environment specified CPP/C/LDFLAGS.
+    Fixes Lintian warning:
+    - W: dpdk-dev: hardening-no-relro
+         usr/share/dpdk/x86_64-default-linuxapp-gcc/app/dpdk-pmdinfogen
+  * Add a brief HOWTO to debian/README.source with instructions to build the
+    packages, for CI systems and the like.
+  * Build with RTE_DEVEL_BUILD=n to avoid building test pmds with an rpath
+    hardcoded to the package build PATH. Fixes Lintian Error:
+    - E: dpdk: binary-or-shlib-defines-rpath usr/bin/dpdk-pdump
+         /home/lboccass/git/dpdk_deb/debian/build/shared-root/lib
+
+  [ Santiago RR ]
+  * improve debian/copyright
+  * remove duplicate entries from d/control
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Mon, 19 Sep 2016 08:49:44 +0200
+
+dpdk (16.07-0ubuntu2) yakkety; urgency=medium
+
+  * d/t/test-initscripts fix false positive in adt
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Fri, 12 Aug 2016 12:56:07 +0200
+
+dpdk (16.07-0ubuntu1) yakkety; urgency=medium
+
+  * release current state of deb_dpdk packaging into yakkety
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Thu, 11 Aug 2016 10:09:10 +0200
+
+dpdk (16.07-0) UNRELEASED; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * Merge with upstream DPDK 16.07 release
+  * Cleanup Lintian Warnings
+    - d/p/fix-unusual-interpreter.patch fixes "W: dpdk-doc:
+      unusual-interpreter"
+    - d/p/fix-double-license-info.patch fixes "W: dpdk-rte-kni-dkms:
+      extra-license-file"
+  * Renamed d/p/ubuntu-fix-vhost-user-socket-permission.patch to
+    d/p/fix-vhost-user-socket-permission.patch
+  * Add lintian-overrides for: E: dpdk-dev: arch-dependent-file-in-usr-share
+    These binaries are part of the sdk and meant to be shipped with the sdk.
+  * d/p/dpdk-dev-doc-fix-old-dpdk-nic-bind.py-references.patch to fix the
+    docs in regard to 16.07 changes renaming dpdk_nic_bind
+  * d/p/make-load-devel-config-not-to-appear-as-executable.patch to avoid
+    accidentially executing as script and to fix unusual-interpreter lintian
+    warning.
+
+  [ Anders Roxell ]
+  * debian/control: add pciutils to the dpdk depends list, since lspci is used
+    by the devbind script
+
+  [ Luca Boccassi ]
+  * Add ${shlib:Depends} to dpdk-dev dependencies
+  * Install api and guides in dpdk-doc
+  * Convert debian/rules to new style DH targets
+  * Add Recommends: python to dpdk-doc since it ships python scripts among the
+    examples, fixes Lintian warning about missing python dependencies
+  * Fix typo in dpdk-doc.README.Debian, fixes "W: dpdk-doc:
+    spelling-error-in-readme-debian to to (duplicate word) to"
+  * Fix upstream rc versions by using "~" instead of "-". 16.07-rc1 evaluates
+    as newer than 16.07 which causes issues with Debian tools and Lintian
+    errors and warnings:
+    - W: libethdev4: latest-debian-changelog-entry-without-new-version
+    - E: libethdev4: symbols-file-contains-current-version-with-debian-revision
+      on symbol DPDK_16.04@DPDK_16.04 and 114 others
+  * Add lintian-overrides for: "W: dpdk-doc: embedded-javascript-library"
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Fri, 29 Jul 2016 08:18:50 +0200
+
+dpdk (16.07~rc5-1) UNRELEASED; urgency=medium
+
+  [ Ricardo Salveti de Araujo ]
+  * Merge with upstream DPDK 16.07-rc5 release
+
+  [ Luca Boccassi ]
+  * Generate pkgconfig and ship it in libdpdk-dev
+  * Document use of dquilt for patches in debian/README.source
+
+ -- Ricardo Salveti de Araujo <rsalveti@rsalveti.net>  Tue, 26 Jul 2016 14:13:38 -0300
+
+dpdk (16.07~rc4-1) UNRELEASED; urgency=medium
+
+  * Merge with upstream DPDK 16.07-rc4 release
+    - Tools renamed, dpdk_nic_bind is now dpdk-devbind
+  * Adapt d/p/ubuntu-fix-vhost-user-socket-permission.patch for dpdk 16.07-rc4
+
+ -- Ricardo Salveti de Araujo <rsalveti@rsalveti.net>  Mon, 25 Jul 2016 13:38:13 -0300
+
+dpdk (16.07~rc3-1) UNRELEASED; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * Merge with upstream DPDK 16.07-rc3 release
+  * droping patches/backports that are already upstream in DPDK 16.07-rc3
+    - d/p/ubuntu-fix-bond-symbol-export.patch
+    - d/p/ubuntu-backport-33-vhost-user-add-error-handling-for-fd-1023.patch
+  * adapt d/p/ubuntu-fix-vhost-user-socket-permission.patch for dpdk 16.07-rc3
+  * update symbols
+
+  [ Ricardo Salveti de Araujo ]
+  * debian/rules:
+    - Allow all make commands to be verbose
+    - Fix libdpdk-dev headers path
+  * Renaming package librte-pmd-e10001 to librte-pmd-e1000-1, to avoid mixing
+    package name with soversion (lintian package-name-doesnt-match-sonames)
+  * Adding package librte-pmd-bnxt1
+  * Merging symbols files, handling the arch differences inline instead
+
+  [ Anders Roxell ]
+  * debian/control: add libpcap-dev to libdpdk-dev's Depends list
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 19 Jul 2016 08:32:06 +0200
+
+dpdk (16.07~rc1-1) UNRELEASED; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * Merge with upstream DPDK 16.07-rc1 release
+  * droping patches/backports that are already upstream in DPDK 16.07
+    - d/p/ubuntu-backport-39-lpm-fix-freeing-in-compatibility-mode.patch
+      This was formerly part of a combined patch that we dropped because the
+      majority is upstream (d/p/ubuntu-fix-lpm-use-after-free-and-leak.patch).
+    - d/p/ubuntu-backport-40-linking-fixes-stage-[1-4]-4.patch
+      d/p/ubuntu-backport-44-linking-cleanup.patch
+      Fixing underlinking and overlinking issues in apps and libraries.
+    - d/p/ubuntu-backport-41-fix-install-tar-1.29.patch
+      Fix issues with tar >=1.29 (Yakkety)
+    - d/p/ubuntu-backport-42-increase-default-logging-level.patch
+      avoid default debug messages causing a perf degradation
+    - d/p/ubuntu-backport-43-fix-level-type-retrieving.patch
+      Fix type retrieving which was broken in standard threads
+    - d/p/ubuntu-fix-xenvirt-support-dynamic-page-size.patch: fix build
+      failure on arm64
+  * droping patches/backports that are no more applicable
+    - d/p/ubuntu-backport-38-* was never accepted despite looking good.
+      Upstream discussion around proper successor started.
+  * keeping patches:
+    - d/p/ubuntu-backport-33-vhost-user-add-error-handling-for-fd-1023.patch
+      Was never accepted, Upstream discussion around proper successor started.
+  * adapt debian/* to upstream changes
+    - update symbols and ABI versions
+    - add librte-pdump1
+  * adding changes
+   - fix exported symbols of librte_pmd_bond (sent upstream, can be dropped
+     later)
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Wed, 06 Jul 2016 09:40:49 +0200
+
+dpdk (16.04-1) UNRELEASED; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * Merge with upstream DPDK 16.04 release
+  * droping patches/backports that are already upstream in DPDK 16.04
+    - d/p/ubuntu-fix-doc-installpath.patch
+    - d/p/ubuntu-fix-testpmd-without-xen.patch
+    - d/p/ubuntu-fix-lpm-use-after-free-and-leak.patch
+    - d/p/ubuntu-backport-[01-32,34-35] backports for stability
+    - d/p/ubuntu-backport-[36-37] but keep doc and example changes in d/*
+  * droping patches for soname / linking fixups.
+    - Upstream now goes with proper soname/abi/api handling per sublib plus a
+      linker script.
+    - dropped d/p/ubuntu-combined-shared-lib-abiversion.patch
+    - dropped d/p/ubuntu-fix-library-linkage.patch
+  * keeping patches:
+    - d/p/ubuntu-backport-38-* fix for memory leak
+      this now applies as is, so changed from a modified backport to match the
+      post 16.04 upstream commit now.
+    - d/p/ubuntu-backport-33-vhost-user-add-error-handling-for-fd-1023.patch
+    - doc and example changes that were related to d/p/ubuntu-backport-[36-37]
+    - d/p/ubuntu-fix-vhost-user-socket-permission.patch adapted for dpdk-16.04:
+      In the new build system with sublibs the exposed function needs to be
+      listed in lib/librte_eal/linuxapp/eal/rte_eal_version.map
+  * adding upstream backports - can be dropped when merging DPDK 16.07.
+    - d/p/ubuntu-backport-39-lpm-fix-freeing-in-compatibility-mode.patch
+      This was formerly part of a combined patch that we dropped because the
+      majority is upstream (d/p/ubuntu-fix-lpm-use-after-free-and-leak.patch).
+    - d/p/ubuntu-backport-40-linking-fixes-stage-[1-4]-4.patch
+      d/p/ubuntu-backport-44-linking-cleanup.patch
+      Fixing underlinking and overlinking issues in apps and libraries.
+    - d/p/ubuntu-backport-41-fix-install-tar-1.29.patch
+      Fix issues with tar >=1.29 (Yakkety)
+    - d/p/ubuntu-backport-42-increase-default-logging-level.patch
+      avoid default debug messages causing a perf degradation
+    - d/p/ubuntu-backport-43-fix-level-type-retrieving.patch
+      Fix type retrieving which was broken in standard threads
+  * adapt to new build system
+    - drop enabling the following build config symbols as they no more exist
+        CONFIG_RTE_BUILD_COMBINE_LIBS
+    - Sub-Libraries are now packaged in a versioned package per library. That
+      allows consumers of dpdk to just depend on what they need. As well as
+      installation of multiple .so versions concurrently.
+    - added the hidden dependency of librte_eal to librte_mempool
+    - use dpkg-buildflags and properly enable hardening
+  * Adding DKMS package for rte_kni (LP: #1592786)
+
+  [ Ricardo Salveti ]
+  * Adding support for ARM64:
+    - debian/control: adding arm64 to the supported architecture list
+    - debian/rules: supporting dpdk config and machine for arm64
+    - d/p/ubuntu-fix-xenvirt-support-dynamic-page-size.patch: fix build
+      failure on arm64
+    - debian/dpdk-sdk-env.sh: generating the right RTE_TARGET during build
+      time, so we can also make it compatible with ARM64
+    - debian/tests: also making tests compatible with ARM64
+  * Adding DKMS package for igb_uio
+  * Build static dpdk with -fPIC so it can be used by shared libraries
+  * debian/copyright: fixing Canonical's copyright entry
+  * Renaming symbol files so they can match the right package
+  * Drop the arch specific symbol files, as they are identical
+
+  [ Anders Roxell ]
+  * debian/dpdk.init: add remote_fs (lintian)
+  * debian/control: fixing week-library-dev-dependency (lintian)
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 17 May 2016 14:23:21 +0200
+
+dpdk (2.2.0-0ubuntu9) yakkety; urgency=medium
+
+  * d/p/ubuntu-backport-[36-37] fix virtio issues (LP: #1570195):
+    - don't let DPDK initialize virtio devices still in use by the kernel
+    - this avoids conflicts between kernel and dpdk usage of those devices
+    - an admin now has to unbind/bind devices as on physical hardware
+    - this is in the dpdk 16.04 release and delta can then be dropped
+    - d/dpdk-doc.README.Debian update for changes in virtio-pci handling
+    - d/dpdk.interfaces update for changes in virtio-pci handling
+  * d/p/ubuntu-backport-38... fix for memory leak (LP: #1570466):
+    - call vhost_destroy_device on removing vhost user ports to fix memory leak
+    - this likely is in the dpdk 16.07 release and delta can then be dropped
+  * d/p/ubuntu-fix-vhost-user-socket-permission.patch fox (LP: #1546565):
+    - when vhost_user sockets are created they are owner:group of the process
+    - the DPDK api to create those has no way to specify owner:group
+    - to fix that without breaking the API and potential workaround code in
+      consumers of the library like openvswitch 2.6 for example. This patch
+      adds an EAL commandline option to specify user:group created vhost_user
+      sockets should have.
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Wed, 27 Apr 2016 07:52:48 -0500
+
+dpdk (2.2.0-0ubuntu7) xenial; urgency=medium
+
+  * Increase max_map_count after setting huge pages (LP: #1507921):
+    - The default config of 65530 would cause issues as soon as about 64GB or
+      more are used as 2M huge pages for dpdk.
+    - Increase this value to base+2*#hugepages to avoid issues on huge systems.
+  * d/p/ubuntu-backport-[28-32,34-35] backports for stability (LP: #1568838):
+     - these will be in the 16.04 dpdk release, delta can then be dropped.
+     - 5 fixes that do not change api/behaviour but fix serious issues.
+        - 01 f82f705b lpm: fix allocation of an existing object
+        - 02 f9bd3342 hash: fix multi-process support
+        - 03 1aadacb5 hash: fix allocation of an existing object
+        - 04 5d7bfb73 hash: fix race condition at creation
+        - 05 fe671356 vfio: fix resource leak
+        - 06 356445f9 port: fix ring writer buffer overflow
+        - 07 52f7a5ae port: fix burst size mask type
+  * d/p/ubuntu-backport-33-vhost-user-add-error-handling-for-fd-1023.patch
+     - this will likely be in dpdk release 16.07 and delta can then be dropped.
+     - fixes a crash on using fd's >1023 (LP: #1566874)
+  * d/p/ubuntu-fix-lpm-use-after-free-and-leak.patch fix lpm_free (LP: #1569375)
+     - the old patches had an error freeing a pointer which had no meta data
+     - that lead to a crash on any lpm_free call
+     - folded into the fix that generally covers the lpm allocation and free
+       weaknesses already (also there this particular mistake was added)
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 12 Apr 2016 16:13:47 +0200
+
+dpdk (2.2.0-0ubuntu6) xenial; urgency=medium
+
+  * d/dpdk-init fix handling of multiple huge page sizes (LP: #1557532):
+     - dpdk-init now ensures non-default-hugepage-size mountpoints are
+       available as well.
+     - extra mountpoints are only created if requested in dpdk.conf and not yet
+       available (e.g. by the admin).
+  * d/dpdk-init fix issues with unassigned devices (LP: #1558485):
+     - dpdk-init no more checks /sys/.../driver of the device unconditionally
+     - removed the superfluous tr call in that path
+  * d/p/ubuntu-fix-lpm-use-after-free-and-leak.patch lpm/lpm6 (LP: #1554009):
+     - lpm/lpm6 fix use after free on lpm[6]_create
+     - lpm/lpm6 fix missing frees of rules_tbl substructure
+     - lpm/lpm6 fix missing free of lpm due to early exit
+     - make RTE_LOG messages of the failed allocation unique
+  * d/p/ubuntu-backport-[01-26] backport for stability (LP: #1559981):
+     - these will be in the following dpdk release and delta can then be dropped
+     - 26 fixes that do not change api/behaviour but fix serious issues
+        - 01 d3a274ce app/testpmd: handle SIGINT and SIGTERM
+        - 02 308df2bf Handle SIGINT and SIGTERM in l3fwd.
+        - 03 da82ee17 tools: fix unbinding failure handling
+        - 04 16c1814c tools: support Python 3 in bind script
+        - 05 bb9f4085 tools: support binding to built-in kernel modules
+        - 06 6e7caa1a eal/linux: support built-in kernel modules
+        - 07 86f36ff9 mempool: fix leak when creation fails
+        - 08 ca67ed28 vhost: fix leak of fds and mmaps
+        - 09 fa11a8a7 port: fix crash for ring writer nodrop
+        - 10 04f36690 port: fix crash for ethdev writer nodrop
+        - 11 c7a4ff80 i40e: fix overflow
+        - 12 097e920c i40e: fix inverted check for no refcount
+        - 13 330aa319 i40e: fix VLAN filtering
+        - 14 9f44dd3d i40e/base: fix missing check for stopped admin queue
+        - 15 8a880736 i40e/base: fix driver load failure
+        - 16 7656a546 fm10k: fix VLAN flag in scattered Rx
+        - 17 c6fb0e55 pcap: fix captured frame length
+        - 18 6e027237 bonding: fix detach of bonded device
+        - 19 df3e8ad7 bonding: fix detach of slave devices
+        - 20 786c990a bonding: copy entire config structure in mode 4
+        - 21 6698820b bonding: do not ignore multicast in mode 4
+        - 22 8997a10b bonding: fix active slaves with no primary
+        - 23 7a7122ed bonding: do not activate slave twice
+        - 24 2186fff3 bonding: fix crash when no slave device
+        - 25 c680a4a8 virtio: fix crash in statistics functions
+        - 26 3b1e3e4e virtio: fix descriptors pointing to the same buffer
+  * d/p/ubuntu-backport-27-virtio-fix-restart.patch for (LP: #1559981):
+     - fixing re-initializing the ethdev as openvswitch-dpdk does in the
+       virtio pmd driver by moving the detection of already being initialized
+       from virtio_dev_close to virtio_dev_start/stop
+     - this will be in the following dpdk release and delta can then be dropped
+  * d/rules build with debuginfo (LP: #1560839):
+     - exporting CFLAGS for all dpdk build processes
+     - dh_strip will automatically and create -dbgsym packages accordingly
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Wed, 23 Mar 2016 10:34:50 +0100
+
+dpdk (2.2.0-0ubuntu5) xenial; urgency=medium
+
+  * d/t/test-initscripts fix issues regarding 1G hugepages
+     - the dep8 was already taking care of 1G hugepages being not supported in
+       some environments. But it was failing when supported, but not enough
+       memory available.
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Wed, 09 Mar 2016 17:19:24 +0000
+
+dpdk (2.2.0-0ubuntu4) xenial; urgency=medium
+
+  * harden d/dpdk-init for configuration issues (LP: #1551601):
+     - detect and warn about bad bus specifications.
+     - detect and warn about incomplete device specifications.
+     - detect and warn about non existing pci IDs.
+     - avoid failing when working with unassigned devices.
+     - d/t/test-initscripts now testing various misconfigs.
+     - d/t/test-initscripts now also verifying service status.
+  * d/dpdk-init d/dpdk.conf now also support 1G hugepages (LP: #1551767):
+     - detect and warn if 1G pages are not available but configured.
+     - d/t/test-initscripts now also testing hugepage allocations.
+     - d/dpdk.conf has an option to drop caches to incease the likeliness of
+       successful 1G hugepage allocations (default off).
+  * d/rules replaced uname -m with DEB_HOST_GNU_CPU (LP: #1551796):
+  * fix testpmd to run without Xen environment (LP: #1551752):
+     - upstream discussion is slow, but we need a fix now. We can drop this
+       and change to the upstream solution when it is available.
+  * avoid errors due to missing modules (LP: #1554397):
+     - d/dpdk-init gracefully warns about missing modules.
+     - d/control now suggests linux-image-generic.
+     - d/dpdk.interfaces has a comment that makes the user aware.
+  * d/dpdk-init fix failure loading vfio-pci (LP: #1554214):
+     - d/dpdk-init no more converts "-" to "_" to make vfio-pci work
+     - d/dpdk.interfaces enhanced comments and updated examples
+     - d/dpdk-doc.README.debian got extra notes about using some modules
+  * unify whitespace/tabs in packaging and scripts
+     - tabs/spaces to just spaces in d/dpdk-init and d/dpdk.init.
+     - few remaining spaces to tabs in d/rules
+  * d/t/test-* now satisfy shellcheck
+  * d/* fix various comments and guides to be more readable
+  * d/dpdk-init and d/copyright updated copyright information
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Wed, 09 Mar 2016 08:48:58 +0000
+
+dpdk (2.2.0-0ubuntu3) xenial; urgency=medium
+
+  * Guard dep8 tests against non supported platforms (LP: #1551158):
+    - d/t/control now avoids failing due to "dependencies are unsatisfiable"
+      when fetching packages. The packages architecture restrictions got added
+      to avoid that.
+    - d/t/check-dpdk-supported-arch.sh is called by all DPDK tests to ensure
+      the platform is supported. If not it skips the test.
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Mon, 29 Feb 2016 11:03:39 +0000
+
+dpdk (2.2.0-0ubuntu2) xenial; urgency=medium
+
+  [ Christian Ehrhardt ]
+  * fix libdpdk.so library linking (LP: #1547517)
+    - libdpdk.so now has proper linkage information (was underlinked)
+      Note: this can be dropped when moving to DPDK 2.3 with linker script
+            instead of combined shared lib.
+    - remove reference to extra linkage needed when building against -ldpdk
+      in dpdk-doc README.
+    - add dep8 d/t/test-linkage to verify linking dpdk works as expected.
+  * d/control remove ${shlibs:Depends} on package with no linked binary
+    avoiding dpkg-gencontrol build warning about unknown ${shlibs:Depends}.
+  * d/dpdk-doc.README.debian fix path to DPDK build environment variable
+    helper script in README file.
+  * Update VCS Info in d/control to include our repositories.
+
+  [  James Page ]
+  * d/*: wrap-and-sort.
+  * d/control: Trim trailing whitespace.
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Thu, 25 Feb 2016 16:07:21 +0000
+
+dpdk (2.2.0-0ubuntu1) xenial; urgency=low
+
+  * Merge from Upstream to DPDK 2.2
+    Remaining changes:
+    - Set soabi for the combined shared library
+  * Drop changes:
+    - configuring RTE_LIBNAME to dpdk as it is the upstream default now
+    - enabled formerly non building components as they build properly in 2.2
+    - d/p/ubunut-avoid-texlive-fonts-extra, d/control:
+      Replace use of DejaVuSansMono is no more needed as upstream changed the
+      font. Thereby we can drop our delta.
+    - d/p/ubuntu-fix-gcc5-ftbs.patch no more needed with DPDK 2.2
+  * Added changes
+    - Disable CONFIG_RTE_NEXT_ABI as required for packaging (git 506f51cc)
+    - Enable LIBRTE_PMD_PCAP which is useful for some DPDK testcase examples
+      this adds a build dependency to libpcap-dev
+    - Fully support DH_VERBOSE for build debugging convenience
+    - adapt to new make infrastructure of dpdk 2.2
+    - d/README.debian: convert into d/dpdk-doc.README.debian
+    - d/dpdk-doc.README.debian: update recommendations about sdk env variables
+    - d/dpdk-sdk-env.sh: now deployed in /usr/share/dpdk to be opt in
+    - enable XEN support for dpdk (LP: #1521289).
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Wed, 17 Feb 2016 09:29:28 +0100
+
+dpdk (2.0.0-0ubuntu3) xenial; urgency=medium
+
+  * Only generate HTML documentation, easing backports to 14.04 and
+    reducing the time to build and size of the -doc package (LP: #1524700).
+
+ -- James Page <james.page@ubuntu.com>  Thu, 10 Dec 2015 10:23:51 +0000
+
+dpdk (2.0.0-0ubuntu2) xenial; urgency=low
+
+  * d/p/ubunut-avoid-texlive-fonts-extra, d/control:
+    Replace use of DejaVuSansMono by courier and drop dependency on the
+    texlive-fonts-extra package (which is in universe).
+  * d/watch added to allow use of uscan to check for upstream releases.
+  * d/dpdk-init: fix error if bash variables could not be resolved that
+    appeared as "[: -gt: unexpected operator" (had no functional impact)
+  * d/dpdk-init:
+    Replace use of head and cut (in /usr/bin) commands with sed (in /bin)
+    while also adding /usr/bin to the PATH used on direct /etc/init.d/dpdk
+    invocation. The PATH is only updated to be on the safe side, there
+    should be no other commands from /usr/bin used (LP: #1516543).
+  * d/t/test-mountpoint: add dep8 test to cover the issue of LP #1517075.
+  * d/dpdk-dev.install: Copy the SDK makefiles into place (LP: #1517075).
+
+ -- Stefan Bader <stefan.bader@canonical.com>  Tue, 17 Nov 2015 11:50:15 +0100
+
+dpdk (2.0.0-0ubuntu1) wily; urgency=low
+
+  * Initial release (LP: #1487538)
+
+ -- Stefan Bader <stefan.bader@canonical.com>  Mon, 01 Jun 2015 18:46:38 +0200

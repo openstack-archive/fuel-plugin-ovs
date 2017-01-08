@@ -1,0 +1,15 @@
+librte_acl.so.2 librte-acl2 #MINVER#
+ DPDK_2.0@DPDK_2.0 16.04
+ rte_acl_add_rules@DPDK_2.0 16.04
+ rte_acl_build@DPDK_2.0 16.04
+ rte_acl_classify@DPDK_2.0 16.04
+ rte_acl_classify_alg@DPDK_2.0 16.04
+ rte_acl_classify_scalar@DPDK_2.0 16.04
+ rte_acl_create@DPDK_2.0 16.04
+ rte_acl_dump@DPDK_2.0 16.04
+ rte_acl_find_existing@DPDK_2.0 16.04
+ rte_acl_free@DPDK_2.0 16.04
+ rte_acl_list_dump@DPDK_2.0 16.04
+ rte_acl_reset@DPDK_2.0 16.04
+ rte_acl_reset_rules@DPDK_2.0 16.04
+ rte_acl_set_ctx_classify@DPDK_2.0 16.04

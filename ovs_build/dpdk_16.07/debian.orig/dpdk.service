@@ -1,0 +1,12 @@
+[Unit]
+Description=DPDK runtime environment
+DefaultDependencies=false
+After=network-pre.target local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/lib/dpdk/dpdk-init start
+
+[Install]
+WantedBy=multi-user.target

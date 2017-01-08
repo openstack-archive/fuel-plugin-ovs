@@ -20,7 +20,7 @@
 #
 set -e
 
-DPDK_BIND="/sbin/dpdk_nic_bind"
+DPDK_BIND="/sbin/dpdk-devbind"
 DPDK_INTERF="/etc/dpdk/interfaces"
 
 

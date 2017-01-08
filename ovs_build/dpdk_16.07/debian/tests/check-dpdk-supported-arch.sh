@@ -2,7 +2,7 @@
 
 arch=$(dpkg --print-architecture)
 case $arch in
-    amd64|i386)
+    amd64|arm64|i386)
         echo "Architecture ${arch} supported, go on with test"
         ;;
     *)

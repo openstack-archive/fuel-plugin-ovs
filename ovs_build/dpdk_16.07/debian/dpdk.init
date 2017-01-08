@@ -2,8 +2,8 @@
 
 ### BEGIN INIT INFO
 # Provides:          dpdk
-# Required-Start:    $local_fs
-# Required-Stop:     $local_fs
+# Required-Start:    $remote_fs $local_fs
+# Required-Stop:     $remote_fs $local_fs
 # Default-Start:     S
 # Default-Stop:      0 1 6
 # Short-Description: start dpdk runtime environment

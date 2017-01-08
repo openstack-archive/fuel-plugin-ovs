@@ -1,0 +1,11 @@
+librte_timer.so.1 librte-timer1 #MINVER#
+ DPDK_2.0@DPDK_2.0 16.04
+ rte_timer_dump_stats@DPDK_2.0 16.04
+ rte_timer_init@DPDK_2.0 16.04
+ rte_timer_manage@DPDK_2.0 16.04
+ rte_timer_pending@DPDK_2.0 16.04
+ rte_timer_reset@DPDK_2.0 16.04
+ rte_timer_reset_sync@DPDK_2.0 16.04
+ rte_timer_stop@DPDK_2.0 16.04
+ rte_timer_stop_sync@DPDK_2.0 16.04
+ rte_timer_subsystem_init@DPDK_2.0 16.04
