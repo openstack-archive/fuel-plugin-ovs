@@ -8,8 +8,6 @@ cd $INSTALL_HOME
 host=$1
 nsh=$2
 dpdk=$3
-dpdk_socket_mem=${4:-''}
-pmd_cpu_mask=${5:-'2'}
 
 apt-get install -y dkms
 
@@ -33,21 +31,11 @@ else
     dpkg -i openvswitch-common_2.6.90-1_amd64.deb
     dpkg -i openvswitch-switch_2.6.90-1_amd64.deb
     dpkg -i python-openvswitch_2.6.90-1_all.deb
-    if [[ $dpdk = 'true' && -n $dpdk_socket_mem ]]
+    if [[ $dpdk = 'true' ]]
     then
         dpkg -i libxenstore3.0*.deb
         dpkg -i libdpdk0_16.07-1_amd64.deb
         dpkg -i dpdk_16.07-1_amd64.deb
         dpkg -i openvswitch-switch-dpdk_2.6.90-1_amd64.deb
-
-        #Set to 0, dpdk init script mount hugepages but don't change current allocation
-        sed -i "s/[# ]*\(NR_2M_PAGES=\).*/\10/" /etc/dpdk/dpdk.conf
-        service dpdk start
-
-        ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true
-        ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-socket-mem="$dpdk_socket_mem"
-        ovs-vsctl --no-wait set Open_vSwitch . other_config:pmd-cpu-mask="$pmd_cpu_mask"
-
-        service openvswitch-switch restart
     fi
 fi
