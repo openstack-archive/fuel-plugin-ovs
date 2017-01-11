@@ -1,0 +1,6 @@
+librte_pmd_vhost.so.1 librte-pmd-vhost1 #MINVER#
+ DPDK_16.04@DPDK_16.04 16.04
+ rte_eth_vhost_feature_disable@DPDK_16.04 16.04
+ rte_eth_vhost_feature_enable@DPDK_16.04 16.04
+ rte_eth_vhost_feature_get@DPDK_16.04 16.04
+ rte_eth_vhost_get_queue_event@DPDK_16.04 16.04

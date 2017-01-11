@@ -1,0 +1,37 @@
+From 5a75a37716f69905af29fbd81aef44625eb69a8b Mon Sep 17 00:00:00 2001
+From: Luca Boccassi <lboccass@brocade.com>
+Date: Wed, 14 Sep 2016 11:47:06 +0100
+Subject: [PATCH] mk: use ?= instead of := for RTE_DEVEL_BUILD
+
+RTE_DEVEL_BUILD is set to := y in mk/rte.vars.mk, which makes it
+impossible to override via an environment variable, and forces users
+to pass it inline in the make call.
+Use ?= instead to have it pick up the environment variable as well.
+
+Cc: <stable@dpdk.org>
+Signed-off-by: Luca Boccassi <lboccass@brocade.com>
+
+Forwarded: yes
+Origin: Upstream, http://dpdk.org/dev/patchwork/patch/15795/
+Author:  Luca Boccassi <lboccass@brocade.com>
+Last-Update: 2016-09-14
+---
+ mk/rte.vars.mk | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mk/rte.vars.mk b/mk/rte.vars.mk
+index 28982a5..21ee0ca 100644
+--- a/mk/rte.vars.mk
++++ b/mk/rte.vars.mk
+@@ -104,7 +104,7 @@ export RTE_TOOLCHAIN
+ 
+ # developer build automatically enabled in a git tree
+ ifneq ($(wildcard $(RTE_SDK)/.git),)
+-RTE_DEVEL_BUILD := y
++RTE_DEVEL_BUILD ?= y
+ endif
+ 
+ # SRCDIR is the current source directory
+-- 
+2.1.4
+

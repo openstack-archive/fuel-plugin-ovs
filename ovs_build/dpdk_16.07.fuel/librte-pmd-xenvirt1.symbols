@@ -1,0 +1,3 @@
+librte_pmd_xenvirt.so.1 librte-pmd-xenvirt1 #MINVER#
+ DPDK_2.0@DPDK_2.0 16.04
+ rte_mempool_gntalloc_create@DPDK_2.0 16.04

@@ -1,0 +1,48 @@
+From a4d00a8bf4684a4cf101b026c7c49a993cf9b989 Mon Sep 17 00:00:00 2001
+From: Luca Boccassi <lboccass@brocade.com>
+Date: Tue, 30 Aug 2016 17:01:49 +0100
+Subject: [PATCH] mk: add missing *CPPFLAGS to rte.compile-pre.mk
+
+Some targets in mk/internal/rte.compile-pre.mk are calling CC or
+HOSTCC without passing CPPFLAGS, EXTRA_CPPFLAGS or HOST_CPPFLAGS,
+HOST_EXTRA_CPPFLAGS.
+On Debian/Ubuntu builds this means that preprocessor flags set by the
+dpkg-buildpackage environment, like hardening flags, are not
+correctly passed to all objects builds.
+
+Signed-off-by: Luca Boccassi <lboccass@brocade.com>
+
+Forwarded: yes
+Origin: Upstream, http://dpdk.org/dev/patchwork/patch/15549/
+Author:  Luca Boccassi <lboccass@brocade.com>
+Last-Update: 2016-08-30
+---
+ mk/internal/rte.compile-pre.mk | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+--- a/mk/internal/rte.compile-pre.mk
++++ b/mk/internal/rte.compile-pre.mk
+@@ -74,18 +74,18 @@ CMDS-all := $(CMDS-y) $(CMDS-n) $(CMDS-)
+ 
+ # command to compile a .c file to generate an object
+ ifeq ($(USE_HOST),1)
+-C_TO_O = $(HOSTCC) -Wp,-MD,$(call obj2dep,$(@)).tmp $(HOST_CFLAGS) \
+-	$(CFLAGS_$(@)) $(HOST_EXTRA_CFLAGS) -o $@ -c $<
++C_TO_O = $(HOSTCC) -Wp,-MD,$(call obj2dep,$(@)).tmp $(HOST_CPPFLAGS) $(HOST_CFLAGS) \
++	$(CFLAGS_$(@)) $(HOST_EXTRA_CPPFLAGS) $(HOST_EXTRA_CFLAGS) -o $@ -c $<
+ C_TO_O_STR = $(subst ','\'',$(C_TO_O)) #'# fix syntax highlight
+ C_TO_O_DISP = $(if $(V),"$(C_TO_O_STR)","  HOSTCC $(@)")
+ else
+-C_TO_O = $(CC) -Wp,-MD,$(call obj2dep,$(@)).tmp $(CFLAGS) \
+-	$(CFLAGS_$(@)) $(EXTRA_CFLAGS) -o $@ -c $<
++C_TO_O = $(CC) -Wp,-MD,$(call obj2dep,$(@)).tmp $(CPPFLAGS) $(CFLAGS) \
++	$(CFLAGS_$(@)) $(EXTRA_CPPFLAGS) $(EXTRA_CFLAGS) -o $@ -c $<
+ C_TO_O_STR = $(subst ','\'',$(C_TO_O)) #'# fix syntax highlight
+ C_TO_O_DISP = $(if $(V),"$(C_TO_O_STR)","  CC $(@)")
+ endif
+ PMDINFO_GEN = $(RTE_SDK_BIN)/app/dpdk-pmdinfogen $@ $@.pmd.c
+-PMDINFO_CC = $(CC) $(CFLAGS) -c -o $@.pmd.o $@.pmd.c
++PMDINFO_CC = $(CC) $(CPPFLAGS) $(CFLAGS) -c -o $@.pmd.o $@.pmd.c
+ PMDINFO_LD = $(CROSS)ld $(LDFLAGS) -r -o $@.o $@.pmd.o $@
+ PMDINFO_TO_O = if grep -q 'PMD_REGISTER_DRIVER(.*)' $<; then \
+ 	echo "$(if $V,$(PMDINFO_GEN),  PMDINFO $@.pmd.c)" && \

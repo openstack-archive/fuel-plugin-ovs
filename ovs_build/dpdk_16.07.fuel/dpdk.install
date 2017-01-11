@@ -1,0 +1,2 @@
+debian/dpdk-init	lib/dpdk/
+debian/dpdk.conf	etc/dpdk/

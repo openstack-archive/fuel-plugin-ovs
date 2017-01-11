@@ -1,0 +1,13 @@
+Tests: test-initscripts
+Restrictions: allow-stderr, isolation-machine, needs-root
+Depends: dpdk [amd64 arm64 i386], gawk, mount, systemd, sysvinit-utils
+
+Tests: test-linkage
+Restrictions: allow-stderr
+Depends: libdpdk-dev [amd64 arm64 i386], libc6, libc6-dev, gcc,
+ grep, libpcap-dev, libxenstore3.0 [amd64 arm64 i386], pax-utils
+
+Tests: test-dkms
+Restrictions: allow-stderr, isolation-machine, needs-root
+Depends: kmod, dpdk-igb-uio-dkms [amd64 arm64 i386],
+ dpdk-rte-kni-dkms [amd64 arm64 i386]

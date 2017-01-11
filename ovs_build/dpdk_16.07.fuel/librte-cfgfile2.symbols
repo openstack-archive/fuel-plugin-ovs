@@ -1,0 +1,13 @@
+librte_cfgfile.so.2 librte-cfgfile2 #MINVER#
+ DPDK_16.04@DPDK_16.04 16.04
+ DPDK_2.0@DPDK_2.0 16.04
+ rte_cfgfile_close@DPDK_2.0 16.04
+ rte_cfgfile_get_entry@DPDK_2.0 16.04
+ rte_cfgfile_has_entry@DPDK_2.0 16.04
+ rte_cfgfile_has_section@DPDK_2.0 16.04
+ rte_cfgfile_load@DPDK_2.0 16.04
+ rte_cfgfile_num_sections@DPDK_2.0 16.04
+ rte_cfgfile_section_entries@DPDK_2.0 16.04
+ rte_cfgfile_section_entries_by_index@DPDK_16.04 16.04
+ rte_cfgfile_section_num_entries@DPDK_2.0 16.04
+ rte_cfgfile_sections@DPDK_2.0 16.04

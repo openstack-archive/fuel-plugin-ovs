@@ -1,0 +1,17 @@
+librte_jobstats.so.1 librte-jobstats1 #MINVER#
+ DPDK_16.04@DPDK_16.04 16.04
+ DPDK_2.0@DPDK_2.0 16.04
+ rte_jobstats_abort@DPDK_16.04 16.04
+ rte_jobstats_context_finish@DPDK_2.0 16.04
+ rte_jobstats_context_init@DPDK_2.0 16.04
+ rte_jobstats_context_reset@DPDK_2.0 16.04
+ rte_jobstats_context_start@DPDK_2.0 16.04
+ rte_jobstats_finish@DPDK_2.0 16.04
+ rte_jobstats_init@DPDK_2.0 16.04
+ rte_jobstats_reset@DPDK_2.0 16.04
+ rte_jobstats_set_max@DPDK_2.0 16.04
+ rte_jobstats_set_min@DPDK_2.0 16.04
+ rte_jobstats_set_period@DPDK_2.0 16.04
+ rte_jobstats_set_target@DPDK_2.0 16.04
+ rte_jobstats_set_update_period_function@DPDK_2.0 16.04
+ rte_jobstats_start@DPDK_2.0 16.04

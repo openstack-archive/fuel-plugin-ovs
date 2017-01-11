@@ -1,0 +1,4 @@
+librte_pmd_null.so.1 librte-pmd-null1 #MINVER#
+ DPDK_2.0@DPDK_2.0 16.04
+ DPDK_2.2@DPDK_2.2 16.04
+ eth_dev_null_create@DPDK_2.2 16.04

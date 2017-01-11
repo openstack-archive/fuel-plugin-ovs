@@ -1,0 +1,6 @@
+librte_kvargs.so.1 librte-kvargs1 #MINVER#
+ DPDK_2.0@DPDK_2.0 16.04
+ rte_kvargs_count@DPDK_2.0 16.04
+ rte_kvargs_free@DPDK_2.0 16.04
+ rte_kvargs_parse@DPDK_2.0 16.04
+ rte_kvargs_process@DPDK_2.0 16.04

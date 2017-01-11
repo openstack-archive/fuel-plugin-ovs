@@ -1,0 +1,143 @@
+#!/bin/sh
+set -e
+
+basedir=$(dirname "$0")
+. "${basedir}"/check-dpdk-supported-arch.sh
+
+# Overall that could require up to 1.2G for hugepages in the test environment
+EXPECT2MHP=10
+# Some page sizes like e.g. 1G might not be available in all test environments
+# The test still configures 1 page of 1G size.
+# One of two things will happen, depending on the test environment:
+# - has 1G huge page size => they will tried to be allocated (usually env is
+#   too small, but we want to see it fail gracefully for that)
+#   We will not check for the 1G alloc, as we know it often fails in small adt's
+# - has no 1G huge page size (HW feature) => we check if it fails gracefully
+EXPECT1GHP=1
+
+DPDK_CONF="/etc/dpdk/dpdk.conf"
+DPDK_INTERF="/etc/dpdk/interfaces"
+
+checkhp() {
+    MMDIR="/sys/kernel/mm/hugepages/${1}"
+    EXPECTHP="${2}"
+    if [ -d "$MMDIR" -a -r "$MMDIR/nr_hugepages" ]; then
+        hpcount=$(cat "$MMDIR/nr_hugepages")
+        if [ "${hpcount}" -ne "${EXPECTHP}" ]; then
+            echo "Hugepages (${hpcount}) not as expected (${EXPECTHP})"
+            exit 1
+        else
+            echo "Hugepages ok (${hpcount})"
+        fi
+    fi
+}
+
+checkstatus() {
+    MARK=${1}
+    EXPMPCOUNT=${2}
+    PRE=${3}
+    POST=${4}
+    EXPECTEDSTATUS=${5}
+    echo "Status after ${MARK}"
+    echo "Status of the Service"
+    ${PRE} status "${POST}" || true
+
+    GOTSTATUS=$(${PRE} status "${POST}" | awk '/^ *Active: / { print $2 }')
+    if [ "${GOTSTATUS}" != "${EXPECTEDSTATUS}" ]; then
+        echo "Service status (${GOTSTATUS}) not as expected (${EXPECTEDSTATUS})"
+        exit 1
+    else
+        echo "Service status (${GOTSTATUS}) as expected"
+    fi
+
+    echo "Status of hugetlbfs mount points"
+    # this section is ok to create bad RCs when no mounts are available
+    set +e
+    grep hugetlbfs < /proc/mounts
+    htlbfscount=$(grep -c hugetlbfs < /proc/mounts)
+    set -e
+
+    # we have to reduce the expected mountpoint count in case some sizes are
+    # not supported by the current kernel/environment
+    if [ ${EXPMPCOUNT} -gt 0 ]; then
+        if [ ! -d /sys/kernel/mm/hugepages/hugepages-2048kB ]; then
+            EXPMPCOUNT=$((EXPMPCOUNT-1))
+        fi
+        if [ ! -d /sys/kernel/mm/hugepages/hugepages-1048576kB ]; then
+            EXPMPCOUNT=$((EXPMPCOUNT-1))
+        fi
+    fi
+
+    if [ "${htlbfscount}" -eq "${EXPMPCOUNT}" ]; then
+        echo "MP Count (${htlbfscount}) as expected (${EXPMPCOUNT})"
+    else
+        echo "MP Count (${htlbfscount}) not as expected (${EXPMPCOUNT})"
+        exit 1
+    fi
+
+    # check if setting HP worked
+    if [ "${EXPMPCOUNT}" -ne "0" ]; then
+        checkhp "hugepages-2048kB" "${EXPECT2MHP}"
+        # We do not check 1G alloc, as it is known to be often not available
+    fi
+}
+
+resetservice() {
+    # help a bit with memory fragmentation regarding huge page allocation
+    sync
+    echo 3 > /proc/sys/vm/drop_caches
+
+    # stopping and resetting Service
+    systemctl stop dpdk.service || /bin/true
+    systemctl reset-failed dpdk.service || /bin/true
+
+    echo "Unmounting all potential hugetlbfs mounts"
+    awk '/hugetlbfs/ {print $2}' /proc/mounts | while read hugetlbmount; do
+        umount -v "$hugetlbmount"
+    done
+}
+
+checkinitstyle() {
+    # We want to verify that
+    # - initially our environment has no hugetlbfs mount
+    # - a system without hugetlbfs mount gets it mounted
+    # - a restart of the service does neither drop nor duplicate the mount
+    PRE=${1}
+    POST=${2}
+    TYPE=${3}
+    printf "\n\n### Checking Type %s ###\n" "${TYPE}"
+    resetservice
+    checkstatus "${TYPE}-BEGIN" 0 "${PRE}" "${POST}" "inactive"
+    echo "### Starting Service ###"
+    ${PRE} start "${POST}"
+    checkstatus "${TYPE}-START" 2 "${PRE}" "${POST}" "active"
+    echo "### Restarting Service ###"
+    ${PRE} restart "${POST}"
+    checkstatus "${TYPE}-RESTART" 2 "${PRE}" "${POST}" "active"
+}
+
+echo "NR_2M_PAGES=$EXPECT2MHP" >> ${DPDK_CONF}
+echo "NR_1G_PAGES=$EXPECT1GHP" >> ${DPDK_CONF}
+
+# We can't rely on any real device for DPDK tests in adt-* environments. But
+# we can expect all kind of broken configuration not to break it (would be
+# detected via set -e).
+# So add all kind of known-to-be-broken definitions and expect it not to fail.
+cat <<EOF > ${DPDK_INTERF}
+# wrong bus
+pTi 0000:04:00.0 uio-pci-generic
+# not enough parms
+0000:04:00.0 uio-pci-generic
+# empty line
+
+# non existing device
+pci 1234:56:78.9 uio-pci-generic
+EOF
+
+# some had issues in the past caused by different init systems, so we test all
+# Direct Calls
+checkinitstyle "/etc/init.d/dpdk" "" "Direct"
+# System V style init
+checkinitstyle "service dpdk" "" "SysV"
+# SystemD style init
+checkinitstyle "systemctl" "dpdk.service" "SystemD"

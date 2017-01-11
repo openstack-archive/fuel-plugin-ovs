@@ -1,0 +1,3 @@
+# Upstream distributes it like this, these are binaries which are
+# part of the sdk which is shipped in dpdk-dev.
+dpdk-dev: arch-dependent-file-in-usr-share

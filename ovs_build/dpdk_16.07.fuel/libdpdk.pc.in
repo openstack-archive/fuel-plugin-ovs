@@ -1,0 +1,10 @@
+prefix=/usr
+exec_prefix=${prefix}
+libdir=${prefix}/lib
+includedir=${prefix}/include
+
+Name: dpdk
+Description: Data Plane Development Kit library
+Version: @VERSION@
+Libs: -L${libdir} @DPDK_LIBS@ -ldl -lm -lpthread -lz
+Cflags: -I${includedir}/dpdk -include ${includedir}/dpdk/rte_config.h

@@ -1,0 +1,13 @@
+librte_kni.so.2 librte-kni2 #MINVER#
+ DPDK_2.0@DPDK_2.0 16.04
+ rte_kni_alloc@DPDK_2.0 16.04
+ rte_kni_close@DPDK_2.0 16.04
+ rte_kni_get@DPDK_2.0 16.04
+ rte_kni_get_name@DPDK_2.0 16.04
+ rte_kni_handle_request@DPDK_2.0 16.04
+ rte_kni_init@DPDK_2.0 16.04
+ rte_kni_register_handlers@DPDK_2.0 16.04
+ rte_kni_release@DPDK_2.0 16.04
+ rte_kni_rx_burst@DPDK_2.0 16.04
+ rte_kni_tx_burst@DPDK_2.0 16.04
+ rte_kni_unregister_handlers@DPDK_2.0 16.04
