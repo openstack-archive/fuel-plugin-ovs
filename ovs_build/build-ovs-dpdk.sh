@@ -10,15 +10,23 @@ BUILD_HOME=${BUILD_HOME:-/tmp/ovs-dpdk}
 
 export DEB_BUILD_OPTIONS='parallel=8 nocheck'
 
-sudo apt-get -y install devscripts dpkg-dev git wget
+sudo apt-get -y install devscripts dpkg-dev git wget dkms
 
-rm -rf ${BUILD_HOME}; mkdir -p ${BUILD_HOME}
+rm -rf ${BUILD_HOME}; mkdir -p ${BUILD_HOME}/deb
 
 cd ${BUILD_HOME}
 wget -c http://fast.dpdk.org/rel/dpdk-16.07.tar.xz
 xz -d dpdk-16.07.tar.xz; tar xvf dpdk-16.07.tar
 cd dpdk-16.07
-cp -r ${BUILD_SRC}/dpdk_16.07/debian .
+cp -r ${BUILD_SRC}/dpdk_16.07.fuel/debian .
+cat << EOF > debian/changelog
+dpdk (16.07-0ubuntu5~u1604+fuel10) xenial; urgency=low
+
+  * Rebuild debian package
+  * update librte-eal2.symbols
+
+ -- Ruijing Guo <ruijing.guo@intel.com> $(date --rfc-2822)
+EOF
 
 # copy from debian/control
 sudo apt-get install -y debhelper \
@@ -38,8 +46,9 @@ sudo apt-get install -y debhelper \
 debian/rules build; fakeroot debian/rules binary
 
 cd ${BUILD_HOME}
+sudo apt-get install -y hwdata
 sudo dpkg -i *.deb
-apt-get download libxenstore3.0
+mv *.deb ${BUILD_DEST}
 
 # copy from debian/control
 sudo apt-get install -y autoconf \
@@ -80,5 +89,6 @@ debian/rules build; fakeroot debian/rules binary
 cd ${BUILD_HOME}/ovs
 debian/rules build; fakeroot debian/rules binary
 
-cp -r ${BUILD_HOME}/*.deb ${BUILD_DEST}
-rm -rf ${BUILD_HOME}
+cp -r ${BUILD_HOME}/*.deb ${BUILD_HOME}/deb
+cd ${BUILD_HOME}/deb
+tar czvf ${BUILD_DEST}/ovs-dpdk.tar.gz .;

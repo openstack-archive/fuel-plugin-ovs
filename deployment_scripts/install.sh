@@ -11,7 +11,7 @@ dpdk=$3
 dpdk_socket_mem=${4:-''}
 pmd_cpu_mask=${5:-'2'}
 
-apt-get install -y dkms
+apt-get install -y --allow-unauthenticated dkms
 
 if [ $nsh = 'true' ]
 then
@@ -22,9 +22,7 @@ then
     dpkg -i python-openvswitch_2.6.1-1.nsh_all.deb
     if [ $dpdk = 'true' ]
     then
-        dpkg -i libxenstore3.0*.deb
-        dpkg -i libdpdk0_16.07-1_amd64.deb
-        dpkg -i dpdk_16.07-1_amd64.deb
+        apt-get install -y --allow-unauthenticated dpdk dpdk-dev dpdk-dkms
         dpkg -i openvswitch-switch-dpdk_2.6.1-1.nsh_amd64.deb
     fi
 else
@@ -33,21 +31,23 @@ else
     dpkg -i openvswitch-common_2.6.90-1_amd64.deb
     dpkg -i openvswitch-switch_2.6.90-1_amd64.deb
     dpkg -i python-openvswitch_2.6.90-1_all.deb
-    if [[ $dpdk = 'true' && -n $dpdk_socket_mem ]]
+    if [ $dpdk = 'true' ]
     then
-        dpkg -i libxenstore3.0*.deb
-        dpkg -i libdpdk0_16.07-1_amd64.deb
-        dpkg -i dpdk_16.07-1_amd64.deb
+        apt-get install -y --allow-unauthenticated dpdk dpdk-dev dpdk-dkms
         dpkg -i openvswitch-switch-dpdk_2.6.90-1_amd64.deb
 
-        #Set to 0, dpdk init script mount hugepages but don't change current allocation
-        sed -i "s/[# ]*\(NR_2M_PAGES=\).*/\10/" /etc/dpdk/dpdk.conf
-        service dpdk start
-
-        ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true
-        ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-socket-mem="$dpdk_socket_mem"
-        ovs-vsctl --no-wait set Open_vSwitch . other_config:pmd-cpu-mask="$pmd_cpu_mask"
-
-        service openvswitch-switch restart
     fi
+fi
+
+if [[ $dpdk = 'true' && -n $dpdk_socket_mem ]]
+then
+    #Set to 0, dpdk init script mount hugepages but don't change current allocation
+    sed -i "s/[# ]*\(NR_2M_PAGES=\).*/\10/" /etc/dpdk/dpdk.conf
+    service dpdk start
+
+    ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true
+    ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-socket-mem="$dpdk_socket_mem"
+    ovs-vsctl --no-wait set Open_vSwitch . other_config:pmd-cpu-mask="$pmd_cpu_mask"
+
+    service openvswitch-switch restart
 fi
