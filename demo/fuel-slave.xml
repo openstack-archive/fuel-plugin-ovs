@@ -9,6 +9,7 @@
   <os>
     <type arch='x86_64' machine='pc-i440fx-trusty'>hvm</type>
     <boot dev='network'/>
+    <boot dev='hd'/>
     <bootmenu enable='no' />
   </os>
   <features>
