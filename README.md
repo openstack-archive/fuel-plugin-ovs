@@ -7,14 +7,14 @@ Openvswitch plugin
 Overview
 --------
 
-Fuel plugin fuel-plugin-ovs is developed to deploy OVS with NSH + DPDK
+Fuel plugin fuel-plugin-ovs is developed to deploy OVS with NSH
 
 Requirements
 ------------
 
 | Requirement                      | Version/Comment |
 |----------------------------------|-----------------|
-| Mirantis OpenStack compatibility | 9.0             |
+| Mirantis OpenStack compatibility | 10.0            |
 
 Recommendations
 ---------------
@@ -60,7 +60,7 @@ Openvswitch plugin installation
 
         id | name            | version | package_version
         ---|-----------------|---------|----------------
-        1  | fuel-plugin-ovs | 0.9.0   | 4.0.0
+        1  | fuel-plugin-ovs | 1.0.0   | 4.0.0
 
 8. Plugin is ready to use and can be enabled on the Settings tab of the Fuel web UI.
 
