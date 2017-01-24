@@ -1,0 +1,14 @@
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -98,11 +98,6 @@
+ EXTRA_DIST = \
+ 	$(docs) \
+ 	NOTICE \
+-	.travis.yml \
+-	.travis/linux-build.sh \
+-	.travis/linux-prepare.sh \
+-	.travis/osx-build.sh \
+-	.travis/osx-prepare.sh \
+ 	appveyor.yml \
+ 	boot.sh \
+ 	build-aux/cccl \

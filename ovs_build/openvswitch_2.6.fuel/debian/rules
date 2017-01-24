@@ -1,0 +1,127 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+export DH_VERBOSE=1
+
+%:
+	dh $@ --with autoreconf,python2,python3,systemd --parallel
+
+# use --as-needed only if supported by dh-autoreconf (to simplify backporting)
+DH_AS_NEEDED=$(shell dpkg --compare-versions $$(dpkg --status dh-autoreconf | grep Version | cut -d' ' -f2) ge 6 && echo --as-needed)
+override_dh_autoreconf:
+	dh_autoreconf $(DH_AS_NEEDED)
+
+ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+PARALLEL = -j$(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
+else
+PARALLEL =
+endif
+
+PYTHONS:=$(shell pyversions -vr)
+PYTHON3S:=$(shell py3versions -vr)
+
+override_dh_auto_configure:
+	test -d _debian || mkdir _debian
+	cd _debian && ( \
+		test -e Makefile || \
+		../configure --prefix=/usr --localstatedir=/var --enable-ssl \
+				     --sysconfdir=/etc $(DATAPATH_CONFIGURE_OPTS))
+ifneq (,$(filter i386 amd64, $(DEB_HOST_ARCH)))
+	test -d _dpdk || mkdir _dpdk
+	cd _dpdk && ( \
+		test -e Makefile || \
+        ../configure --prefix=/usr --localstatedir=/var --enable-ssl \
+                     --with-dpdk --sysconfdir=/etc \
+					 $(DATAPATH_CONFIGURE_OPTS))
+endif
+
+
+# Skip some known failing tests - review for each snapshot or release
+# https://bugs.launchpad.net/bugs/1622751
+# https://bugs.launchpad.net/bugs/1609846
+#
+# 15: bfd - bfd decay
+# 1154: ofproto-dpif - in place modification (vlan)
+# 1871: ovsdb-server/active-backup-role-switching
+# 2227: ovn -- vtep: 3 HVs, 1 VIFs/HV, 1 GW, 1 LS vtep
+#
+SKIP_TEST = 1-14 16-1153 1155-1870 1872-2226 2228-
+
+override_dh_auto_test:
+# NOTE(jamespage): skip tests on powerpc/s390x until
+# https://bugs.launchpad.net/ubuntu/+source/openvswitch/+bug/1483572
+# is resolved
+ifeq (,$(filter powerpc s390x,$(DEB_HOST_ARCH)))
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+	if $(MAKE) -C _debian check TESTSUITEFLAGS='$(PARALLEL) $(SKIP_TEST)' || \
+                $(MAKE) -C _debian check TESTSUITEFLAGS='--recheck'; then :; \
+	else \
+		cat _debian/tests/testsuite.log; \
+		exit 1; \
+	fi
+ifneq (,$(filter i386 amd64, $(DEB_HOST_ARCH)))
+	if $(MAKE) -C _dpdk check TESTSUITEFLAGS='$(PARALLEL) $(SKIP_TEST)' || \
+				$(MAKE) -C _dpdk check TESTSUITEFLAGS='--recheck'; then :; \
+	else \
+		cat _dpdk/tests/testsuite.log; \
+		exit 1; \
+	fi
+endif # i386/amd64/arm64
+endif # nocheck
+endif # powerpc/s390x
+
+override_dh_auto_build:
+	$(MAKE) -C _debian dist distdir=openvswitch
+ifneq (,$(filter i386 amd64, $(DEB_HOST_ARCH)))
+	$(MAKE) -C _dpdk
+endif
+
+override_dh_auto_clean:
+	rm -f python/ovs/*.pyc python/ovs/db/*.pyc
+	dh_auto_clean
+	rm -rf _debian _dpdk
+
+override_dh_auto_install:
+	$(MAKE) -C _debian DESTDIR=$(CURDIR)/debian/tmp install
+
+override_dh_install:
+	dh_install --list-missing
+	cp debian/openvswitch-switch.default debian/openvswitch-switch/usr/share/openvswitch/switch/default.template
+	mkdir -p $(CURDIR)/debian/openvswitch-switch/usr/lib/openvswitch-switch
+	mv $(CURDIR)/debian/openvswitch-switch/usr/sbin/ovs-vswitchd \
+		$(CURDIR)/debian/openvswitch-switch/usr/lib/openvswitch-switch/ovs-vswitchd
+	set -e && for pyvers in $(PYTHONS); do \
+		cd python && python$$pyvers setup.py install --install-layout=deb \
+			--root $(CURDIR)/debian/python-openvswitch; \
+	done
+	set -e && for pyvers in $(PYTHON3S); do \
+        cd python && python$$pyvers setup.py install --install-layout=deb \
+            --root $(CURDIR)/debian/python3-openvswitch; \
+    done
+ifneq (,$(filter i386 amd64, $(DEB_HOST_ARCH)))
+	install -D _dpdk/vswitchd/ovs-vswitchd \
+        $(CURDIR)/debian/openvswitch-switch-dpdk/usr/lib/openvswitch-switch-dpdk/ovs-vswitchd-dpdk
+endif
+
+override_dh_installinit:
+	dh_installinit -R
+	dh_installinit -popenvswitch-switch --name=openvswitch-nonetwork --no-start
+	dh_installinit -popenvswitch-switch --name=openvswitch-force-reload-kmod --no-start
+
+override_dh_strip:
+	dh_strip --dbg-package=openvswitch-dbg
+
+# Helper target for creating snapshots from upstream git
+DATE=$(shell date +%Y%m%d)
+# Upstream branch to track
+BRANCH=branch-2.6
+VERSION=2.6.1
+
+get-orig-snapshot:
+	rm -Rf openvswitch-upstream
+	git clone https://github.com/openvswitch/ovs openvswitch-upstream
+	cd openvswitch-upstream && \
+		git checkout $(BRANCH) && \
+		export COMMIT=`git rev-parse --short HEAD` && \
+		git archive --format tgz --prefix=openvswitch-$(VERSION)~git$(DATE).$$COMMIT/ \
+			-o ../../openvswitch_$(VERSION)~git$(DATE).$$COMMIT.orig.tar.gz $(BRANCH)
+	rm -Rf openvswitch-upstream

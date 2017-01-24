@@ -1,0 +1,45 @@
+--- a/utilities/ovs-ctl.in
++++ b/utilities/ovs-ctl.in
+@@ -722,7 +722,7 @@
+ case $command in
+     start)
+         start_ovsdb || exit 1
+-        start_forwarding
++        start_forwarding || exit 1
+         add_managers
+         ;;
+     stop)
+@@ -730,7 +730,7 @@
+         stop_ovsdb
+         ;;
+     restart)
+-        restart
++        restart || exit 1
+         ;;
+     status)
+         rc=0
+--- a/utilities/ovs-lib.in
++++ b/utilities/ovs-lib.in
+@@ -63,7 +63,9 @@
+         ;;
+         *)
+             echo "`date -u`:$@" >> "${logdir}/ovs-ctl.log"
+-            "${datadir}/scripts/ovs-ctl" "$@" 2>&1 | tee -a "${logdir}/ovs-ctl.log"
++            "${datadir}/scripts/ovs-ctl" "$@" 2>&1 >> "${logdir}/ovs-ctl.log"
++            rc=$?
++            return ${rc}
+         ;;
+     esac
+ }
+@@ -190,7 +192,10 @@
+         set nice -n "$priority" "$@"
+     fi
+ 
+-    action "Starting $daemon" "$@"
++    if ! action "Starting $daemon" "$@"; then
++        log_failure_msg "Start of $@ failed with $?"
++        return 1
++    fi
+ 
+     if test X"$strace" != X; then
+         # Strace doesn't have the -D option so we attach after the fact.

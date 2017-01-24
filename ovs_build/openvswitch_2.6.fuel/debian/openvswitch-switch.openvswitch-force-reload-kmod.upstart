@@ -1,0 +1,14 @@
+# vim: set ft=upstart ts=2 et:
+description "Open vSwitch - force reload of kernel module"
+author "James Page <james.page@ubuntu.com"
+
+task
+
+script
+  stop openvswitch-switch || true
+  # Drop gre module as well - native kernel module in 3.11 uses
+  # this and it blocks GRE protocol registration in the DKMS
+  # module
+  modprobe -r openvswitch gre || true
+  start openvswitch-switch
+end script

@@ -1,0 +1,50 @@
+# vim: set ft=upstart ts=2 et:
+description "Open vSwitch switch"
+author "James Page <james.page@ubuntu.com"
+
+start on (local-filesystems and net-device-up IFACE=lo)
+stop on runlevel [!2345]
+
+pre-start script
+  (test -x /usr/sbin/ovs-vswitchd && test -x /usr/sbin/ovsdb-server) || exit 0
+
+  . /usr/share/openvswitch/scripts/ovs-lib
+  test -e /etc/default/openvswitch-switch && . /etc/default/openvswitch-switch
+
+  if ovs_ctl load-kmod; then
+    :
+  else
+    echo "Module has probably not been built for this kernel."
+    if ! test -d /usr/share/doc/openvswitch-datapath-dkms; then
+      echo "Install the openvswitch-datapath-dkms package."
+    fi
+
+    if test X"$OVS_MISSING_KMOD_OK" = Xyes; then
+      # We're being invoked by the package postinst.  Do not
+      # fail package installation just because the kernel module
+      # is not available.
+      exit 0
+    fi
+  fi
+  set ovs_ctl start --system-id=random
+  if test X"$FORCE_COREFILES" != X; then
+    set "$@" --force-corefiles="$FORCE_COREFILES"
+  fi
+  set "$@" $OVS_CTL_OPTS
+  "$@"
+  BRIDGES=$(ifquery --allow ovs --list)
+  if test X"$BRIDGES" != X; then
+    ifup --allow ovs $BRIDGES
+  fi
+end script
+
+post-stop script
+  . /usr/share/openvswitch/scripts/ovs-lib
+  test -e /etc/default/openvswitch-switch && . /etc/default/openvswitch-switch
+
+  BRIDGES=$(ifquery --allow ovs --list)
+  if test X"$BRIDGES" != X; then
+    ifdown --allow ovs $BRIDGES
+  fi
+  ovs_ctl stop
+end script

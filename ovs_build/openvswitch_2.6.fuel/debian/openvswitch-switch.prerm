@@ -1,0 +1,14 @@
+#!/bin/sh
+
+set -e
+
+update-alternatives --remove ovs-vswitchd /usr/lib/openvswitch-switch/ovs-vswitchd
+
+if [ -x /usr/lib/openvswitch-switch/ovs-vswitchd-dpdk ]; then
+    update-alternatives --remove ovs-vswitchd /usr/lib/openvswitch-switch/ovs-vswitchd-dpdk
+fi
+
+#DEBHELPER#
+
+exit 0
+

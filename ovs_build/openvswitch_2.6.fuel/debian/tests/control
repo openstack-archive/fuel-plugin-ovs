@@ -1,0 +1,4 @@
+Tests: vanilla dpdk
+Depends: mininet (>= 2.2.0~), iperf, openvswitch-switch,
+ openvswitch-testcontroller, openvswitch-switch-dpdk [amd64 i386]
+Restrictions: needs-root rw-build-tree

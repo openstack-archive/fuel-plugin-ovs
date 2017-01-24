@@ -1,0 +1,5 @@
+mirantis/ovs-ctl-dpdk.patch
+#mirantis/system-dpdk.patch
+mirantis/ovs-remove-travis.patch
+mirantis/exit-on-err-daemon-start-restart.patch
+mirantis/fix-pkgdatadir.patch

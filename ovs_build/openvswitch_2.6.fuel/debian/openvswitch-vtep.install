@@ -1,0 +1,4 @@
+usr/bin/vtep-ctl
+usr/share/man/man8/vtep-ctl.8
+usr/share/openvswitch/scripts/ovs-vtep
+usr/share/openvswitch/vtep.ovsschema

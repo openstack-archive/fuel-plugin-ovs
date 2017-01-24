@@ -1,0 +1,7 @@
+usr/bin/ovn-nbctl
+usr/bin/ovn-sbctl
+usr/share/man/man7/ovn-architecture.7
+usr/share/man/man8/ovn-ctl.8
+usr/share/man/man8/ovn-nbctl.8
+usr/share/man/man8/ovn-sbctl.8
+usr/share/openvswitch/scripts/ovn-ctl

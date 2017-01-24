@@ -1,0 +1,1571 @@
+openvswitch (2.6.1-0~u1604+mos1) mos; urgency=medium
+
+  * openvswitch 2.6.1
+
+ -- Ivan Suzdal <mos-linux@mirantis.com>  Fri, 09 Dec 2016 11:10:09 +0000
+
+openvswitch (2.6.0-0ubuntu2) yakkety; urgency=medium
+
+  * Updates to cover the new way Openvswitch is configurging DPDK (LP: #1625542)
+    - d/openvswitch-switch.default
+    - d/openvswitch-switch-dpdk.README.Debian
+    - drop d/p/ovs-ctl-dpdk.patch
+
+ -- Christian Ehrhardt <christian.ehrhardt@canonical.com>  Tue, 04 Oct 2016 11:07:08 +0200
+
+openvswitch (2.6.0-0ubuntu1) yakkety; urgency=medium
+
+  * New upstream release:
+    - d/rules: Update SKIP_TEST numbers inline with upstream.
+
+ -- James Page <james.page@ubuntu.com>  Wed, 28 Sep 2016 13:09:26 +0100
+
+openvswitch (2.6.0~git20160912.dc61b4e-0ubuntu4) yakkety; urgency=medium
+
+  * d/rules: Correct SKIP_TEST 1149 -> 1150 (racey on arm64).
+
+ -- James Page <james.page@ubuntu.com>  Thu, 15 Sep 2016 09:18:59 +0100
+
+openvswitch (2.6.0~git20160912.dc61b4e-0ubuntu3) yakkety; urgency=medium
+
+  * d/rules: Tidy SKIP_TEST list, document in rules file actual test
+    failures as test numbers change between releases.
+
+ -- James Page <james.page@ubuntu.com>  Wed, 14 Sep 2016 18:02:24 +0100
+
+openvswitch (2.6.0~git20160912.dc61b4e-0ubuntu2) yakkety; urgency=medium
+
+  * d/rules: Re-enable previously disabled SKIP_TEST list; builds under load
+    still exhibit races in a number of tests.
+
+ -- James Page <james.page@ubuntu.com>  Tue, 13 Sep 2016 14:37:51 +0100
+
+openvswitch (2.6.0~git20160912.dc61b4e-0ubuntu1) yakkety; urgency=medium
+
+  * New upstream snapshot from branch-2.6 (LP: #1609846).
+  * d/rules: Skip test 1866 on ppc64el.
+  * d/rules: Re-enable all tests across other archs.
+
+ -- James Page <james.page@ubuntu.com>  Mon, 12 Sep 2016 22:42:46 +0100
+
+openvswitch (2.6.0~git20160822.2cff273-0ubuntu1) yakkety; urgency=medium
+
+  * New upstream snapshot from branch-2.6.
+  * d/rules: Switch to branch-2.6 now its been cut upstream.
+
+ -- James Page <james.page@ubuntu.com>  Mon, 22 Aug 2016 11:48:27 +0100
+
+openvswitch (2.6.0~git20160810.7f5f2bd-0ubuntu3) yakkety; urgency=medium
+
+  * Revert DPDK support on arm64.
+
+ -- James Page <james.page@ubuntu.com>  Fri, 12 Aug 2016 08:25:57 +0100
+
+openvswitch (2.6.0~git20160810.7f5f2bd-0ubuntu2) yakkety; urgency=medium
+
+  * Enable dpdk builds for arm64.
+  * Generalize blacklist of racey/failing unit tests.
+
+ -- James Page <james.page@ubuntu.com>  Thu, 11 Aug 2016 21:59:17 +0100
+
+openvswitch (2.6.0~git20160810.7f5f2bd-0ubuntu1) yakkety; urgency=medium
+
+  * New upstream snapshot for 2.6.0 release goal.
+  * d/control: Bumped Standards-Version to 3.9.8, no changes.
+  * d/openvswitch-common.install: Drop ovs-benchmark tool, removed upstream
+    due to lack of use and maintenance.
+  * d/control,ovn-controller-vtep.*: Add ovn-controller-vtep package.
+  * d/openvswitch-switch.install: Add ovs-tcpdump binary and manpage.
+  * Add support for Python 3:
+    - d/control: Drop surplus Python 2 BD's, add BD's for Python 3.
+    - d/control: Add missing dependency on python-six.
+    - d/rules,control: Add python3-openvswitch package.
+  * d/rules: Skip racey/failing tests until resolved upstream.
+
+ -- James Page <james.page@ubuntu.com>  Thu, 11 Aug 2016 17:53:28 +0100
+
+openvswitch (2.5.0-0ubuntu1) xenial; urgency=medium
+
+  * New upstream release.
+
+ -- James Page <james.page@ubuntu.com>  Thu, 10 Mar 2016 14:09:14 +0000
+
+openvswitch (2.5.0~git20160219.522aca6-0ubuntu3) xenial; urgency=medium
+
+  * d/rules,control,openvswitch-switch-dpdk.*: Install DPDK enabled binaries
+    into a new package (replacing the one from src:openvswitch-dpdk) rather
+    than shipping alongside the vanilla binaries (LP: #1550254).
+  * d/openvswitch-switch.*: Tidy up alternatives related to ovs-vswitchd-dpdk
+    in 2.5.0~git20160219.522aca6-0ubuntu2.
+  * d/tests/*: Refactor, exercise vanilla and dpdk enabled binaries where
+    possible.
+
+ -- James Page <james.page@ubuntu.com>  Fri, 26 Feb 2016 12:39:27 +0000
+
+openvswitch (2.5.0~git20160219.522aca6-0ubuntu2) xenial; urgency=medium
+
+  * [9c970b06] d/rules,*.manpages,*.install: Prepare for dual build.
+  * [f7dff3e7] DPDK enablement (LP: #1492186):
+    - d/p/system-dpdk.patch: Pick patch from openvswitch-dpdk to
+      support use with libdpdk-dev.
+    - d/control: Add DPDK dependencies for supported archs.
+    - d/rules: Build DPDK enabled binaries for supported archs.
+    - d/openvswitch-switch.p*: Install ovs-vswitch-dpdk binary as an
+      alternative.
+    - d/openvswitch-switch.README.Debian: Let users know how to use
+      the DPDK binary.
+
+ -- James Page <james.page@ubuntu.com>  Wed, 24 Feb 2016 21:44:41 +0000
+
+openvswitch (2.5.0~git20160219.522aca6-0ubuntu1) xenial; urgency=medium
+
+  * [7c4c30b] Imported upstream snapshot 2.5.0~git20160219.522aca6.
+
+ -- James Page <james.page@ubuntu.com>  Fri, 19 Feb 2016 13:51:49 +0000
+
+openvswitch (2.5.0~git20160129.46a88d9-0ubuntu1) xenial; urgency=medium
+
+  * [099b995] d/rules: Switch to 2.5 branch for snapshots.
+  * [aee4d60] Imported upstream snapshot 2.5.0~git20160129.46a88d9
+  * [b5d8f41] d/p/*: Refresh patches.
+  * [97855b9] d/control,ovn*: Sync packaging changes from upstream for
+              experimental OVN support.
+  * [5c2ef1d] d/*.init: Tidy up init.d-script-does-not-source-init-functions
+              lint.
+  * [f3434f7] d/control: Add dh-python to BD's.
+  * [81a7cca] d/control: Fixup breaks/replaces for upgrades.
+  * [c19cf60] d/*.init Ensure _SYSTEMCTL_SKIP_REDIRECT is set prior to
+              inclusion of init-functions.
+  * [a7d5430] d/openvswitch-switch.openvswitch-nonetwork.service: Pass
+              OVS_CTL_OPTS instead of OPTIONS to ovs-ctl on startup.
+  * [d19098f] d/p/ovs-ctl-dpdk.patch: Sort out tab/space formatting.
+  * [9e3989e] d/control: Add libcap-ng-dev to BD's to support running
+              ovs daemons as non-root users.
+
+ -- James Page <james.page@ubuntu.com>  Fri, 29 Jan 2016 11:44:50 +0100
+
+openvswitch (2.4.0-0ubuntu5) xenial; urgency=high
+
+  * Skip tests on s390x, for the same reason as powerpc see 1483572.
+
+ -- Dimitri John Ledkov <xnox@ubuntu.com>  Tue, 26 Jan 2016 10:38:48 +0000
+
+openvswitch (2.4.0-0ubuntu4) wily; urgency=medium
+
+  [ Arata Notsu ]
+  * Fix ifupdown hooks in cases where BRIDGE is not defined. (LP: #1314887)
+
+ -- Chris J Arges <chris.j.arges@canonical.com>  Thu, 15 Oct 2015 15:03:34 -0500
+
+openvswitch (2.4.0-0ubuntu3) wily; urgency=medium
+
+  [ Brian Turek ]
+  * Add ifupdown hooks for upstart script. (LP: #1314887)
+
+ -- Chris J Arges <chris.j.arges@canonical.com>  Wed, 14 Oct 2015 13:51:13 -0500
+
+openvswitch (2.4.0-0ubuntu2) wily; urgency=medium
+
+  * Install ovs-vswitchd binary using alternatives for all architectures
+    to support use of alternative DPDK enabled binaries (LP: #1499759):
+    - d/rules: Move ovs-vswitchd to /usr/lib/openvswitch-switch.
+    - d/openvswitch-switch.{postinst,prerm}: Install binary using
+      alternatives.
+    - d/openvswitch-switch.default: Add some example DPDK options
+      (disabled by default).
+    - d/p/ovs-ctl-dpdk.patch: Splice in DPDK options to ovs-vswitchd
+      startup arguments if provided.
+
+ -- James Page <james.page@ubuntu.com>  Mon, 28 Sep 2015 16:29:30 +0100
+
+openvswitch (2.4.0-0ubuntu1) wily; urgency=medium
+
+  * Update to 2.4.0 release from previous snapshot.
+
+ -- James Page <james.page@ubuntu.com>  Tue, 01 Sep 2015 11:53:49 +0100
+
+openvswitch (2.4.0~git20150810.97bab95-0ubuntu2) wily; urgency=medium
+
+  * d/rules: Skip unit tests on powerpc - see https://pad.lv/1483572 for
+    full details.
+
+ -- James Page <james.page@ubuntu.com>  Tue, 11 Aug 2015 09:26:13 +0100
+
+openvswitch (2.4.0~git20150810.97bab95-0ubuntu1) wily; urgency=medium
+
+  * New upstream snapshot from 2.4 branch:
+    - d/*: Align any relevant packaging changes with upstream.
+  * d/*: wrap-and-sort.
+  * d/openvswitch-{common,vswitch}.install: Correct install location for
+    bash completion files.
+  * d/tests/openflow.py: Explicitly use ovs-testcontroller as provided
+    by 2.4.0 release.
+
+ -- James Page <james.page@ubuntu.com>  Mon, 10 Aug 2015 11:35:15 +0100
+
+openvswitch (2.3.2-0ubuntu3) wily; urgency=medium
+
+  * d/tests/openflow.py: Use net.addLink to add links between switches and
+    hosts to ensure that they get cleanup up after use, fixing autopkgtest
+    failures.
+
+ -- James Page <james.page@ubuntu.com>  Fri, 17 Jul 2015 12:48:25 +0100
+
+openvswitch (2.3.2-0ubuntu2) wily; urgency=medium
+
+  * d/p/rules: Skip test 717 due to failure on powerpc - see
+    http://pad.lv/1472202 for full details.
+
+ -- James Page <james.page@ubuntu.com>  Tue, 07 Jul 2015 11:15:12 +0100
+
+openvswitch (2.3.2-0ubuntu1) wily; urgency=medium
+
+  * New upstream point release.
+  * Refresh all patches.
+
+ -- James Page <james.page@ubuntu.com>  Tue, 30 Jun 2015 14:34:02 +0100
+
+openvswitch (2.3.1-0ubuntu1) vivid; urgency=low
+
+   * New upstream release.
+   * d/rules,*.manpages: Rewrite to use more standard debhelper sequencing.
+   * d/automake.mk,openvswitch-switch.default,rules:
+     Rename openvswitch-switch.template -> openvswitch-switch.default.
+   * Enable systemd support:
+     - d/openvswitch-switch.service,
+       d/openvswitch-switch.openvswitch-nonetwork.service:
+       Systemd unit files, derived from RHEL versions.
+     - d/control: Add BD on dh-systemd.
+     - d/rules: Enable systemd helper, explicit no-start install of
+       openvswitch-nonetwork unit.
+     - d/ifupdown.sh: Tweak to support use with systemd ifinstalled.
+   * d/control: Bumped Standards-Version 3.9.6, no changes.
+   * d/tests/common: Drop module reload checks, as we always use the
+     in-tree kernel module now.
+   * d/python-openvswitch.*,openvswitch-test.*,automake.mk:
+     Tidy up install of Python components.
+
+ -- James Page <james.page@ubuntu.com>  Thu, 18 Dec 2014 12:36:25 +0000
+
+openvswitch (2.3.0+git20140819-2ubuntu2) vivid; urgency=medium
+
+  * Resolve DEP-8 test failures:
+    - d/tests/openflow.py: Explicitly configure switches to use
+      OpenFlow 1.0 protocol.
+    - d/tests/control: Version dependency on mininet >= 2.2.0~
+      to support specification of protocol version.
+  * d/tests/openflow.py: format to flake8 standard.
+
+ -- James Page <james.page@ubuntu.com>  Mon, 24 Nov 2014 14:41:55 +0000
+
+openvswitch (2.3.0+git20140819-2ubuntu1) vivid; urgency=medium
+
+  * Merge from Debian unstable, remaining changes:
+    - d/control,tests: Add autopkg tests.
+    - d/control,openvswitch-testcontroller*: Add binary package for
+      test controller to support use with mininet.
+    - d/rules,*.upstart: Add upstart configurations for openvswitch-switch.
+    - d/p/xcp-interface-reconfigure.patch: Add support for Debian
+      packaged xcp-xapi if found.
+    - d/rules: Ensure dh_autoreconf_clean is called.
+    - d/rules: Add helper for generating snapshot from upstream git repo.
+    - d/control,compat: Bump debhelper compat level to 9.
+    - d/control: Bump Standards-Version to 3.9.5, no changes.
+    - d/control: Add alternative dependency - kmod | module-init-tools.
+  * d/control: Add missing ${shlibs:Depends} to openvswitch-testcontroller.
+  * d/tests/*: Drop dkms and module assistant tests now that we no longer
+    ship the datapath kernel module.
+  * d/rules: Align snapshot creation to new repo location and 2.3 branch.
+
+ -- James Page <james.page@ubuntu.com>  Wed, 12 Nov 2014 14:03:17 +0000
+
+openvswitch (2.3.0+git20140819-2) unstable; urgency=low
+
+  * debian/rules: Rerun checks on tests that fail the first time.  Skip
+    tests 711, 712, and 713 that seem to fail due to races on buildds.
+  * debian/patches/cfm-avoid-long-delay: Upstream patch to avoid
+    test failures in CFM tests due to "long delay" log messages at WARN level.
+  * debian/patches/ovs-appctl-log-options.patch,
+    debian/patches/disable-poll-loop-logging-for-long-output.patch:
+    Upstream patches to avoid test failures in tests that generate a ton
+    of output.
+
+ -- Ben Pfaff <pfaffben@debian.org>  Wed, 20 Aug 2014 08:31:11 -0700
+
+openvswitch (2.3.0+git20140819-1) unstable; urgency=low
+
+  * New upstream release:
+   - OpenFlow 1.1, 1.2, and 1.3 are now enabled by default in
+     ovs-vswitchd.
+   - Linux kernel datapath now has an exact match cache optimizing the
+     flow matching process.
+   - Datapath flows now have partially wildcarded tranport port field
+     matches.  This reduces userspace upcalls, but increases the
+     number of different masks in the datapath.  The kernel datapath
+     exact match cache removes the overhead of matching the incoming
+     packets with the larger number of masks, but when paired with an
+     older kernel module, some workloads may perform worse with the
+     new userspace.
+  * Removed datapath packages because Linux 3.16 has adequate built-in
+    support.  Closes: #740983.
+    - debian/control: Remove datapath package references.  Add build
+      dependency on dh-autoreconf.
+    - debian/rules: Don't build datapath packages.
+    - debian/openvswitch-datapath-*: Removed.
+    - debian/control.modules.in: Removed.
+    - debian/dkms.conf.in: Removed.
+    - debian/rules.modules: Removed.
+    - debian/openvswitch-switch.README.Debian: Removed references to kernel
+      packages.
+    - debian/openvswitch-switch.init: Removed references to kernel packages.
+    - debian/automake.mk: Remov references to deleted files.
+    - debian/rules: Adopt use of dh-autoreconf.
+
+ -- Ben Pfaff <pfaffben@debian.org>  Tue, 19 Aug 2014 08:19:21 -0700
+
+openvswitch (2.3.0-1) unstable; urgency=low
+   [ Open vSwitch team ]
+   * New upstream version
+   - OpenFlow 1.1, 1.2, and 1.3 are now enabled by default in
+     ovs-vswitchd.
+   - Linux kernel datapath now has an exact match cache optimizing the
+     flow matching process.
+   - Datapath flows now have partially wildcarded tranport port field
+     matches.  This reduces userspace upcalls, but increases the
+     number of different masks in the datapath.  The kernel datapath
+     exact match cache removes the overhead of matching the incoming
+     packets with the larger number of masks, but when paired with an
+     older kernel module, some workloads may perform worse with the
+     new userspace.
+
+ -- Open vSwitch team <dev@openvswitch.org>  Thu, 14 Aug 2014 11:03:32 -0700
+
+openvswitch (2.2.0-1) unstable; urgency=low
+
+   [ Open vSwitch team ]
+   * New upstream version
+   - Internal ports are no longer brought up by default, because it
+     should be an administrator task to bring up devices as they are
+     configured properly.
+   - ovs-vsctl now reports when ovs-vswitchd fails to create a new port or
+     bridge.
+   - The "ovsdbmonitor" graphical tool has been removed, because it was
+     poorly maintained and not widely used.
+   - New "check-ryu" Makefile target for running Ryu tests for OpenFlow
+     controllers against Open vSwitch.  See INSTALL for details.
+   - Added IPFIX support for SCTP flows and templates for ICMPv4/v6 flows.
+   - Upon the receipt of a SIGHUP signal, ovs-vswitchd no longer reopens its
+     log file (it will terminate instead). Please use 'ovs-appctl vlog/reopen'
+     instead.
+   - Support for Linux kernels up to 3.14. From Kernel 3.12 onwards OVS uses
+     tunnel API for GRE and VXLAN.
+   - Added experimental DPDK support.
+   - Added support for custom vlog patterns in Python
+
+ -- Open vSwitch team <dev@openvswitch.org>  Wed, 19 Mar 2014 16:08:38 -0700
+
+openvswitch (2.1.3-0ubuntu1) utopic; urgency=medium
+
+  * New upstream release.
+  * d/control: Drop hardening-wrapper from build Depends.
+  * d/compat,control: Bump debhelper compat level to 9.
+
+ -- James Page <james.page@ubuntu.com>  Fri, 15 Aug 2014 09:17:45 +0100
+
+openvswitch (2.1.2-0ubuntu3) utopic; urgency=medium
+
+  * Ensure test-controller is built on all architectures:
+    - d/control: Introduce new openvswitch-testcontroller package.
+    - d/{openvswitch-testcontroller,openvswitch-test}.{install,manpages}:
+      Move test-controller binary to new testcontroller package. 
+    - d/tests/control: Use openvswitch-testcontroller instead of
+      openvswitch-test.
+
+ -- James Page <james.page@ubuntu.com>  Mon, 02 Jun 2014 13:02:01 +0100
+
+openvswitch (2.1.2-0ubuntu2) utopic; urgency=high
+
+  * No change rebuild against new dh_installinit, to call update-rc.d at
+    postinst.
+
+ -- Dimitri John Ledkov <xnox@ubuntu.com>  Wed, 28 May 2014 10:41:42 +0100
+
+openvswitch (2.1.2-0ubuntu1) utopic; urgency=medium
+
+  * New upstream release:
+    - d/*: Resync packaging with upstream:
+      + Drop openvswitch-{controller,pki} and ovsdbmonitor packages.
+      + Drop openvswitch-pki targets from automake.mk.
+      + Add openvswitch-vtep package.
+    - d/tests/control,common: Drop use of openvswitch-controller in
+      preference of openvswitch-test.
+    - d/openvswitch-test.{install,manpages}: Provide test-controller
+      for continued use by mininet for ovs testing.
+
+ -- James Page <james.page@ubuntu.com>  Mon, 19 May 2014 14:05:29 +0100
+
+openvswitch (2.1.0+git20140411-3) unstable; urgency=low
+
+  * debian/rules: Disable some tests that tend to fail on Debian buildds
+    due to race conditions.
+
+ -- Ben Pfaff <pfaffben@debian.org>  Fri, 13 Jun 2014 06:07:31 -0700
+
+openvswitch (2.1.0+git20140411-2) unstable; urgency=low
+
+  * debian/openvswitch-switch.postinst: Add back mysteriously deleted
+    "mkdir" line.  Closes: #744769.  Thanks to Joshua Powers for reporting
+    this bug.
+  * debian/rules: Try rechecking in serial any tests that fail in
+    parallel, as an experiment to see whether this fixes remaining buildd
+    test failures.
+
+ -- Ben Pfaff <pfaffben@debian.org>  Mon, 14 Apr 2014 08:29:33 -0700
+
+openvswitch (2.1.0+git20140411-1) unstable; urgency=low
+
+  * New upstream release:
+    - Removed ovsdbmonitor package.  Closes: #744136.
+    - Fix misaligned data accesses that caused test failures.
+  * tests/ofproto-macros.at: Disable scanning logs for WARN and ERR messages,
+    as an experiment to see whether this fixes all the buildd test failures.
+
+ -- Ben Pfaff <pfaffben@debian.org>  Fri, 11 Apr 2014 08:35:10 -0700
+
+openvswitch (2.1.0+git20140325-1) unstable; urgency=low
+
+  * New upstream release.
+    - Included kernel module builds against Linux 3.11.  Closes: #732260.
+    - Log rotation bug fixed.  Closes: #729304.
+    - Bridge compatibility feature removed.  Closes: #680538, #681954.
+    - Controller package removed.  Closes: #731133.
+  * Shut down OVS after libvirt guests to allow those guests to remove
+    their interfaces gracefully. Closes: #701760.  Reported by Ernesto
+    Domato <edomat@gmail.com>.  Fix from Lukasz Szotek
+    <szotman@gmail.com>.
+  * debian/control: Depend on kmod instead of module-init-tools.  Closes:
+    #733696.  Reported by md@Linux.IT (Marco d'Itri).
+
+ -- Ben Pfaff <pfaffben@debian.org>  Mon, 31 Mar 2014 09:31:10 -0700
+
+openvswitch (2.0.1+git20140120-0ubuntu2) trusty; urgency=medium
+
+  * Rebuild to drop files installed into /usr/share/pyshared.
+
+ -- Matthias Klose <doko@ubuntu.com>  Sun, 23 Feb 2014 13:49:27 +0000
+
+openvswitch (2.0.1+git20140120-0ubuntu1) trusty; urgency=medium
+
+  * New upstream snapshot:
+    - d/p/0001-Add-check-for-latomic.patch: Dropped - included in snapshot.
+  * d/p/fix-3.11-support.patch: Cherry pick fix for >= 3.11 GRE support
+    from upstream VCS (LP: #1270649).
+  * d/tests/dkms,ma: Gate test execution on <= 3.13 kernel.
+
+ -- James Page <james.page@ubuntu.com>  Mon, 20 Jan 2014 12:55:24 +0000
+
+openvswitch (2.0.1+git20140106-0ubuntu1) trusty; urgency=medium
+
+  * New upstream snapshot.
+
+ -- James Page <james.page@ubuntu.com>  Mon, 06 Jan 2014 17:32:42 +0000
+
+openvswitch (2.0.0+git20131203-0ubuntu1) trusty; urgency=low
+
+  * New upstream snapshot.
+  * d/rules: Switch snapshot branch to branch-2.0.
+  * Rework checks for -latomic:
+    - d/p/0001-Add-check-for-latomic.patch: Add autoconf checks to see
+      if -latomic is required when linking test-atomic.
+    - d/p/atomic-test.patch: Dropped in preference to new patch.
+
+ -- James Page <james.page@ubuntu.com>  Thu, 05 Dec 2013 10:08:20 +0000
+
+openvswitch (2.0.0-0ubuntu3) trusty; urgency=low
+
+  * d/rules,control: Switch to using dh-autoreconf for clean package builds.
+  * d/p/kernel-3.12-support.patch: Add support for 3.12 kernel.
+  * d/tests/control,kernel,common: Add kernel test to exercise in-tree
+    openvswitch module, run openflow test against all module sources instead
+    of standalone at the end of other tests.
+
+ -- James Page <james.page@ubuntu.com>  Mon, 11 Nov 2013 12:23:01 +0000
+
+openvswitch (2.0.0-0ubuntu2) trusty; urgency=low
+
+  * d/p/atomic-test.patch: Link atomic test with -latomic for powerpc.
+
+ -- Adam Conrad <adconrad@ubuntu.com>  Sun, 03 Nov 2013 21:07:20 -0700
+
+openvswitch (2.0.0-0ubuntu1) trusty; urgency=low
+
+  * New upstream release:
+    - d/p/kernel-3.11-support.patch: Cherry picked fix from upstream VCS
+      for 3.11 kernel support.
+    - Drop all other patches, no longer required.
+  * d/p/xcp-interface-reconfigure.patch: Detect and use packaged XCP XAPI
+    interface-reconfigure hook if installed (LP: #1195053).
+
+ -- James Page <james.page@ubuntu.com>  Mon, 28 Oct 2013 13:15:45 +0000
+
+openvswitch (1.10.2-0ubuntu2) saucy; urgency=low
+
+  * d/p/boot.patch: Re-execution of boot.sh to ensure that new files
+    introduced via patches are included in the dkms and source packages
+    (LP: #1229222).
+
+ -- James Page <james.page@ubuntu.com>  Mon, 23 Sep 2013 15:50:06 +0100
+
+openvswitch (1.10.2-0ubuntu1) saucy; urgency=low
+
+  * New upstream point release.
+
+ -- James Page <james.page@ubuntu.com>  Sat, 07 Sep 2013 08:48:22 +0100
+
+openvswitch (1.10.1+git20130823-0ubuntu3) saucy; urgency=low
+
+  * d/openvswitch-switch.openvswitch-force-reload-kmod.upstart: Deal with
+    instances where openvswitch-switch is not already running, use
+    modprobe -r instead of rmmod to remove kernel modules.
+
+ -- James Page <james.page@ubuntu.com>  Wed, 28 Aug 2013 13:32:38 +0100
+
+openvswitch (1.10.1+git20130823-0ubuntu2) saucy; urgency=low
+
+  * Fully support transitions from openvswitch module in 3.11 kernel to
+    DKMS module:
+    - d/openvswitch-switch.openvswitch-force-reload-mod.upstart: Drop the
+      gre module when force reloading to make transitions from native kernel
+      module to dkms module work.
+    - d/NEWS: Drop information about DKMS/kernel compatibility with GRE
+      tunnels. 
+
+ -- James Page <james.page@ubuntu.com>  Sat, 24 Aug 2013 09:41:02 +0100
+
+openvswitch (1.10.1+git20130823-0ubuntu1) saucy; urgency=low
+
+  * New upstream snapshot.
+    - d/p/*.patch: Rebase on 1.10 branch with upstream submitted fixes
+      for Linux 3.11 kernel compatibility (LP: #1213879). 
+    - d/NEWS: Add note about GRE tunnel support in the Linux 3.11 native
+      kernel module with advice on use of -dkms package in this configuration.
+  * Add Upstart configuration for openvswitch-switch (LP: #1084028):
+    - d/openvswitch-switch.upstart: Add upstart configuration to support
+      use during early boot.
+    - d/rules,openvswitch-switch.openvswitch-force-reload-mod.upstart: Add
+      helper to replace 'service openvswitch-switch force-reload-kmod'.
+    - d/openvswitch-switch.preinst: Stop versions earlier than this version
+      prior to install due to switch to upstart configuration.
+    - d/NEWS: Let users know about this change and how to force a reload
+      of the openvswitch kernel module.
+    - d/tests/dkms,common: Update to work with upstart configuration.
+
+ -- James Page <james.page@ubuntu.com>  Fri, 23 Aug 2013 11:18:52 +0100
+
+openvswitch (1.10.1+git20130627-0ubuntu2) saucy; urgency=low
+
+  * Allow compile with Linux 3.11 kernel
+    - d/p/0005-datapath-Allow-compile-with-linux-3.11.patch
+      Extend version checking to include the new kernel version.
+
+ -- Stefan Bader <stefan.bader@canonical.com>  Sat, 03 Aug 2013 12:12:08 +0100
+
+openvswitch (1.10.1+git20130627-0ubuntu1) saucy; urgency=low
+
+  * New upstream snapshot:
+    - d/p/0007-tests-Tolerate-init-process-pid-1.patch: Dropped; included
+      in snapshot.
+    - d/p/*lacp*: Drop patches related to lacp test changes; not required
+      for this series.
+    - d/*: Sync relevant packaging changes.
+  * Provide initial support for Linux 3.10 kernel:
+    - d/p/0004-datapath-Fixup-compatibility-with-linux-3.10.patch:
+      Fixup compatibility with Linux 3.10; this is not full support for
+      all new 3.10 features - it simply maintains compatibility for the
+      existing codebase.
+  * d/rules: Add get-orig-snapshot target for creating snapshots from
+    upstream VCS.
+
+ -- James Page <james.page@ubuntu.com>  Mon, 01 Jul 2013 09:45:12 +0100
+
+openvswitch (1.10.0-0ubuntu5) saucy; urgency=low
+
+  * d/p/0007-tests-Tolerate-init-process-pid-1.patch: Resync with upstream
+    accepted fix for FTBFS with upstart user sessions enabled, supercedes
+    fix-init-user-sessions.patch with a more reliable test.
+
+ -- James Page <james.page@ubuntu.com>  Fri, 21 Jun 2013 09:43:18 +0100
+
+openvswitch (1.10.0-0ubuntu4) saucy; urgency=low
+
+  * Fix FTBFS when upstart user sessions are enabled:
+    - d/p/fix-init-user-sessions.patch: init is not pid == 1 when building
+      on Ubuntu with user sessions enabled; just check that the cmd name
+      of the init process is 'init' instead.
+
+ -- James Page <james.page@ubuntu.com>  Thu, 20 Jun 2013 18:46:17 +0100
+
+openvswitch (1.10.0-0ubuntu3) saucy; urgency=low
+
+  * d/rules: Disable testing on powerpc architecture
+    https://bugs.launchpad.net/ubuntu/+source/openvswitch/+bug/1189408. 
+
+ -- James Page <james.page@ubuntu.com>  Mon, 10 Jun 2013 11:20:56 +0100
+
+openvswitch (1.10.0-0ubuntu2) saucy; urgency=low
+
+  * Fix FTBFS on powerpc architecture:
+    - d/p/{0004,0005,0006}*.patch: Cherry picked fixes from upstream VCS
+      for failing lacp test.
+
+ -- James Page <james.page@ubuntu.com>  Mon, 10 Jun 2013 10:30:10 +0100
+
+openvswitch (1.10.0-0ubuntu1) saucy; urgency=low
+
+  * New upstream release:
+    - d/p/handle-unix-socket-long-paths.patch: Dropped - included
+      upstream.
+    - d/control,NEWS: Drop openvswitch-brcompat package as feature has
+      been dropped upstream, added NEWS entry to let users know.
+    - d/tests: Update tests to drop brcompat module testing.
+  * Add support for Linux 3.9 kernel (LP: #1180385):
+    - d/p/0001-datapath-hlist-drop-the-node-parameter-from-iterator.patch:
+      Cherry picked fix from upstream master branch to remove dropped
+      node parameter from hlist calls.
+    - d/p/0002-Add-support-for-linux-3.9-kernel.patch:
+      Include the 3.9 kernel in the list of supported kernel versions.
+    - d/p/0003-datapath-Backport-simplified-hlist-iterators.patch:
+      Cherry picked fix to provide backported hlist iterators for older
+      kernels.
+    - d/rules: Always run boot.sh to pickup above changes.
+
+ -- James Page <james.page@ubuntu.com>  Mon, 03 Jun 2013 15:40:43 +0100
+
+openvswitch (1.9.3+git20131029-1) unstable; urgency=low
+
+  * New upstream release.
+    - Fixes opening Unix sockets with very long names from Python.
+
+ -- Ben Pfaff <pfaffben@debian.org>  Tue, 29 Oct 2013 08:31:55 -0700
+
+openvswitch (1.9.3+git20131028-1) unstable; urgency=low
+
+  * New upstream release.
+    - Fixes "make check" with non-ASCII characters in present working 
+      directory.  Closes: #719736.
+
+ -- Ben Pfaff <pfaffben@debian.org>  Mon, 28 Oct 2013 08:40:31 -0700
+
+openvswitch (1.9.3+git20131021-1) unstable; urgency=low
+
+  * New upstream version:
+    - Fixes unaligned access issues in bug #719736.
+    - Other bug fixes.
+  * Other half of bug #719736 has probably not been addressed.  I don't
+    understand it and want to see if it recurs in the autobuilders with
+    the unaligned accesses fixed.
+
+ -- Ben Pfaff <pfaffben@debian.org>  Mon, 21 Oct 2013 08:53:11 -0700
+
+openvswitch (1.9.3-1) unstable; urgency=low
+   [ Open vSwitch team ]
+   * New upstream version
+    - Bug fixes
+
+ -- Open vSwitch team <dev@openvswitch.org>  Thu, 29 Aug 2013 17:02:33 -0700
+
+openvswitch (1.9.2+git20130813-1) unstable; urgency=low
+
+  * New upstream version.  Closes: #701758.
+    - debian/patches: All patches dropped because they have been
+      incorporated upstream.
+    - Supports kernels up to 3.8.  Closes: #710125.
+  
+ -- Ben Pfaff <pfaffben@debian.org>  Fri, 07 Jun 2013 14:15:01 -0700
+
+openvswitch (1.9.2-1) unstable; urgency=low
+   [ Open vSwitch team ]
+   * New upstream version
+    - Bug fixes
+
+ -- Open vSwitch team <dev@openvswitch.org>  Fri, 05 Apr 2013 18:37:19 -0700
+
+openvswitch (1.9.1-1) unstable; urgency=low
+   [ Open vSwitch team ]
+   * New upstream version
+    - Bug fixes
+
+ -- Open vSwitch team <dev@openvswitch.org>  Tue, 14 Mar 2013 17:27:19 -0700
+
+openvswitch (1.9.0-1) unstable; urgency=low
+   [ Open vSwitch team ]
+   * New upstream version
+    - Datapath:
+      - Support for ipv6 set action.
+      - SKB mark matching and setting.
+      - support for Linux kernels up to 3.8
+    - FreeBSD is now a supported platform, thanks to code contributions from
+      Gaetano Catalli, Ed Maste, and Giuseppe Lettieri.
+    - ovs-bugtool: New --ovs option to report only OVS related information.
+    - New %t and %T log escapes to identify the subprogram within a
+      cooperating group of processes or threads that emitted a log message.
+      The default log patterns now include this information.
+    - OpenFlow:
+      - Allow bitwise masking for SHA and THA fields in ARP, SLL and TLL
+        fields in IPv6 neighbor discovery messages, and IPv6 flow label.
+      - Adds support for writing to the metadata field for a flow.
+    - Tunneling:
+      - The tunneling code no longer assumes input and output keys are
+        symmetric.  If they are not, PMTUD needs to be disabled for
+        tunneling to work. Note this only applies to flow-based keys.
+      - New support for a nonstandard form of GRE that supports a 64-bit key.
+      - Tunnel Path MTU Discovery default value was set to 'disabled'.
+        This feature is deprecated and will be removed soon.
+      - Tunnel header caching removed.
+    - ovs-ofctl:
+      - Commands and actions that accept port numbers now also accept keywords
+        that represent those ports (such as LOCAL, NONE, and ALL).  This is
+        also the recommended way to specify these ports, for compatibility
+        with OpenFlow 1.1 and later (which use the OpenFlow 1.0 numbers
+        for these ports for different purposes).
+    - ovs-dpctl:
+      - Support requesting the port number with the "port_no" option in
+        the "add-if" command.
+    - ovs-pki: The "online PKI" features have been removed, along with
+      the ovs-pki-cgi program that facilitated it, because of some
+      alarmist insecurity claims.  We do not believe that these claims
+      are true, but because we do not know of any users for this
+      feature it seems better on balance to remove it.  (The ovs-pki-cgi
+      program was not included in distribution packaging.)
+    - ovsdb-server now enforces the immutability of immutable columns.  This
+      was not enforced in earlier versions due to an oversight.
+    - The following features are now deprecated.  They will be removed no
+      earlier than February 2013.  Please email dev@openvswitch.org with
+      concerns.
+        - Bridge compatibility.
+        - Stable bond mode.
+        - The autopath action.
+        - Interface type "null".
+        - Numeric values for reserved ports (see "ovs-ofctl" note above).
+        - Tunnel Path MTU Discovery.
+        - CAPWAP tunnel support.
+    - The data in the RARP packets can now be matched in the same way as the
+      data in ARP packets.
+
+ -- Open vSwitch team <dev@openvswitch.org>  Tue, 26 Feb 2013 11:23:19 -0700
+
+openvswitch (1.9.0-0ubuntu1) raring; urgency=low
+
+  * New upstream release.
+  * Added watch file. 
+
+ -- James Page <james.page@ubuntu.com>  Fri, 01 Mar 2013 14:25:54 +0000
+
+openvswitch (1.9.0~git20130225.cec7c9e-0ubuntu1) raring; urgency=low
+
+  * New upstream snapshot.
+  * d/rules.modules: Install built modules to updates/openvswitch to ensure
+    that they override any kernel provided version of openvswitch. 
+
+ -- James Page <james.page@ubuntu.com>  Mon, 25 Feb 2013 14:28:46 +0000
+
+openvswitch (1.9.0~git20130207.84b39f2-0ubuntu2) raring; urgency=low
+
+  * Add DEP-8 tests for dkms, module-assistant and openflow. 
+
+ -- James Page <james.page@ubuntu.com>  Sun, 17 Feb 2013 20:40:09 +0000
+
+openvswitch (1.9.0~git20130207.84b39f2-0ubuntu1) raring; urgency=low
+
+  * New upstream snapshot from 1.9 branch:
+    - d/p/support-linux-3.8.patch,
+      d/p/linux-Makefile.main.in-acinclude-preparation-for-lin.patch:
+      Dropped as included upstream.
+  * Fix dependencies for ovsdbmonitor (LP: #1098324):
+    - d/control: Add dependency on python-twisted-conch.
+  * d/control: Bumped Standards-Version, no changes.
+
+ -- James Page <james.page@ubuntu.com>  Thu, 07 Feb 2013 15:32:38 +0000
+
+openvswitch (1.9.0~git20130115.ca71f5b-0ubuntu2) raring; urgency=low
+
+  * Fix typo in debian/openvswitch-controller.default (LP: #1094556).
+
+ -- Logan Rosen <logatronico@gmail.com>  Thu, 17 Jan 2013 19:24:45 +0000
+
+openvswitch (1.9.0~git20130115.ca71f5b-0ubuntu1) raring; urgency=low
+
+  * New upstream snapshot based on branch-1.9:
+    - d/patches: Dropped all previous patches as all found upstream.
+    - d/*: Synced packaging with upstream packaging changes.
+    - d/control: Add libtool to BD's to support use of snapshot.
+  * Fix compatibility with Linux 3.8 (LP: #1098650):
+    - d/p/support-linux-3.8.patch:
+      Accept Linux 3.8 as a compatible kernel version.
+    - d/p/linux-Makefile.main.in-acinclude-preparation-for-lin.patch:
+      Adjust autoconf checks to correctly detect new kernel header file names.
+  * Fix python test issues caused by long UNIX socket paths:
+    - d/p/handle-unix-socket-long-paths.patch:
+      Workaround long UNIX socket paths by using /proc/self/fd on Linux.
+
+ -- James Page <james.page@ubuntu.com>  Wed, 16 Jan 2013 11:22:40 +0000
+
+openvswitch (1.8.0-1) unstable; urgency=low
+   [ Open vSwitch team ]
+   * New upstream version
+    *** Internal only release ***
+    - New FAQ.  Please send updates and additions!
+    - Authors of controllers, please read the new section titled "Action
+      Reproduction" in DESIGN, which describes an Open vSwitch change in
+      behavior in corner cases that may affect some controllers.
+    - ovs-l3ping:
+        - A new test utility that can create L3 tunnel between two Open
+          vSwitches and detect connectivity issues.
+    - ovs-ofctl:
+        - New --sort and --rsort options for "dump-flows" command.
+        - "mod-port" command can now control all OpenFlow config flags.
+    - OpenFlow:
+      - Allow general bitwise masking for IPv4 and IPv6 addresses in
+        IPv4, IPv6, and ARP packets.  (Previously, only CIDR masks
+        were allowed.)
+      - Allow support for arbitrary Ethernet masks.  (Previously, only
+        the multicast bit in the destination address could be individually
+        masked.)
+      - New field OXM_OF_METADATA, to align with OpenFlow 1.1.
+      - The OFPST_QUEUE request now reports an error if a specified port or
+        queue does not exist, or for requests for a specific queue on all
+        ports, if the specified queue does not exist on any port.  (Previous
+        versions generally reported an empty set of results.)
+      - New "flow monitor" feature to allow controllers to be notified of
+        flow table changes as they happen.
+    - Additional protocols are not mirrored and dropped when forward-bpdu is
+      false.  For a full list, see the ovs-vswitchd.conf.db man page.
+    - Open vSwitch now sends RARP packets in situations where it previously
+      sent a custom protocol, making it consistent with behavior of QEMU and
+      VMware.
+    - All Open vSwitch programs and log files now show timestamps in UTC,
+      instead the local timezone, by default.
+
+ -- Open vSwitch team <dev@openvswitch.org>  Mon, 16 Jul 2012 16:44:52 +0900
+
+openvswitch (1.7.0-1) unstable; urgency=low
+  [ Open vSwitch team ]
+  * New upstream version
+    - kernel modules are renamed. openvswitch_mod.ko is now
+      openvswitch.ko and brcompat_mod.ko is now brcompat.ko.
+    - Increased the number of NXM registers to 8.
+    - Added ability to configure dscp setting for manager and controller
+      connections.  By default, these connections have a DSCP value of
+      Internetwork Control (0xc0).
+    - Added the granular link health statistics, 'cfm_health', to an
+      interface.
+    - OpenFlow:
+        - Added support to mask nd_target for ICMPv6 neighbor discovery flows.
+        - Added support for OpenFlow 1.3 port description (OFPMP_PORT_DESC)
+          multipart messages.
+    - ovs-ofctl:
+        - Added the "dump-ports-desc" command to retrieve port
+          information using the new port description multipart messages.
+    - ovs-test:
+        - Added support for spawning ovs-test server from the client.
+        - Now ovs-test is able to automatically create test bridges and ports.
+    - "ovs-dpctl dump-flows" now prints observed TCP flags in TCP flows.
+    - Tripled flow setup performance.
+    - The "coverage/log" command previously available through ovs-appctl
+      has been replaced by "coverage/show".  The new command replies with
+      coverage counter values, instead of logging them.
+
+ -- Open vSwitch team <dev@openvswitch.org>  Mon, 30 Jul 2012 17:23:57 +0900
+
+openvswitch (1.6.1-1) unstable; urgency=low
+  [ Open vSwitch team ]
+  * New upstream version
+    - Allow OFPP_CONTROLLER as the in_port for packet-out messages.
+
+ -- Open vSwitch team <dev@openvswitch.org>  Mon, 25 Jun 2012 13:52:17 +0900
+
+openvswitch (1.6.0-1) unstable; urgency=low
+  [ Open vSwitch team ]
+  * New upstream version
+    - bonding
+        - LACP bonds no longer fall back to balance-slb when negotiations fail.
+          Instead they drop traffic.
+        - The default bond_mode changed from SLB to active-backup, to protect
+          unsuspecting users from the significant risks of SLB bonds (which are
+          documented in vswitchd/INTERNALS).
+        - Load balancing can be disabled by setting the bond-rebalance-interval
+          to zero.
+    - OpenFlow:
+        - Added support for bitwise matching on TCP and UDP ports.
+          See ovs-ofctl(8) for more information.
+        - NXM flow dumps now include times elapsed toward idle and hard
+          timeouts.
+        - Added an OpenFlow extension NXT_SET_ASYNC_CONFIG that allows
+          controllers more precise control over which OpenFlow messages they
+          receive asynchronously.
+        - New "fin_timeout" action.
+        - Added "fin_timeout" support to "learn" action.
+    - The default MAC learning timeout has been increased from 60 seconds
+      to 300 seconds.  The MAC learning timeout is now configurable.
+    - When QoS settings for an interface do not configure a default queue
+      (queue 0), Open vSwitch now uses a default configuration for that
+      queue, instead of dropping all packets as in previous versions.
+    - Logging to console and file will have UTC timestamp as a default for all
+      the daemons. An example of the default format is 2012-01-27T16:35:17Z.
+      ovs-appctl can be used to change the default format as before.
+    - New support for limiting the number of flows in an OpenFlow flow
+      table, with configurable policy for evicting flows upon
+      overflow.  See the Flow_Table table in ovs-vswitch.conf.db(5)
+      for more information.
+    - New "enable-async-messages" column in the Controller table.  If set to
+      false, OpenFlow connections to the controller will initially have all
+      asynchronous messages disabled, overriding normal OpenFlow behavior.
+    - ofproto-provider interface:
+        - "struct rule" has a new member "used" that ofproto implementations
+          should maintain by updating with ofproto_rule_update_used().
+    - ovsdb-client:
+        - The new option --timestamp causes the "monitor" command to print
+          a timestamp with every update.
+    - CFM module CCM broadcasts can now be tagged with an 802.1p priority.
+
+ -- Open vSwitch team <dev@openvswitch.org>  Fri, 24 Feb 2012 11:12:48 +0900
+
+openvswitch (1.5.0-1) unstable; urgency=low
+  [ Open vSwitch team ]
+  * New upstream version
+    - OpenFlow:
+        - Added support for querying, modifying, and deleting flows
+          based on flow cookie when using NXM.
+        - Added new NXM_PACKET_IN format.
+    - ovs-ofctl:
+        - Added daemonization support to the monitor and snoop commands.
+    - ovs-vsctl:
+        - The "find" command supports new set relational operators
+          {=}, {!=}, {<}, {>}, {<=}, and {>=}.
+    - ovsdb-tool now uses the typical database and schema installation
+      directories as defaults.
+
+ -- Open vSwitch team <dev@openvswitch.org>  Fri, 01 June 2012 13:06:00 +0900
+
+openvswitch (1.4.3-0ubuntu2) quantal-proposed; urgency=low
+
+  * Re-enable the openvswitch-datapath-dkms package to enable support
+    for gre tunnels between virtual switches which is not supported
+    in the kernel provided openvswitch module (LP: #1068365). 
+    - d/patches/0001->0008*.patch: Cherry picked patches from upstream
+      trunk which enable support for the 3.5 linux kernel and align
+      dkms module naming with kernel module naming.
+    - d/dkms.conf.in: Drop _mod postfix from dkms module names.
+
+ -- James Page <james.page@ubuntu.com>  Tue, 23 Oct 2012 17:24:17 +0200
+
+openvswitch (1.4.3-0ubuntu1) quantal; urgency=low
+
+  * New upstream release (LP: #1057098).
+  * Dropped Debian patches:
+    - debian/patches/debian-changes-1.4.2+git20120612-6
+    - debian/patches/bug-681955-ovs-ctl-Start-the-rest-of-Open-vSwitch.patch
+    - debian/patches/bug-684057-ovs-ctl-Add-support-for-newer-module-name.patch
+    - debian/patches/debian-changes-1.4.2+git20120612-9
+  * Dropped Ubuntu patches:
+    - debian/patches/lp1044318-Reset-upper-layer-protocol-info.patch
+  * Remaining changes:
+    - debian/rules, debian/control: Enable hardening wrapper.
+    - debian/control: Disable openvswitch-datapath-dkms package.
+
+ -- Adam Gandelman <adamg@canonical.com>  Mon, 24 Sep 2012 14:55:07 -0700
+
+openvswitch (1.4.2+git20120612-9ubuntu3) quantal; urgency=low
+
+  * debian/patches/lp1044318-Reset-upper-layer-protocol-info.patch: Cherry
+    picked upstream patch to avoid critical issues with SNAT/DNAT when OVS
+    is chained with other Linux components. May be dropped with 1.4.3 upload.
+    (LP: #1044318)
+
+ -- Adam Gandelman <adamg@canonical.com>  Fri, 07 Sep 2012 12:12:03 -0700
+
+openvswitch (1.4.2+git20120612-9ubuntu2) quantal; urgency=low
+
+  * debian/rules, debian/control: Enable hardening wrapper.
+
+ -- Chuck Short <zulcss@ubuntu.com>  Mon, 20 Aug 2012 19:39:58 -0500
+
+openvswitch (1.4.2+git20120612-9ubuntu1) quantal; urgency=low
+
+  * Merge from Debian unstable; remaining changes:
+    - d/control: Disable openvswitch-datapath-dkms package.
+  * Dropped changes:
+    - d/patches/kernel_3.5_support.patch: Superceded by 
+      bug-684057-ovs-ctl-Add-support-for-newer-module-name.patch
+
+ -- James Page <james.page@ubuntu.com>  Tue, 07 Aug 2012 16:00:53 +0100
+
+openvswitch (1.4.2+git20120612-9) unstable; urgency=low
+
+  * Apply bug-684057-ovs-ctl-Add-support-for-newer-module-name.patch to
+    allow use of the openvswitch kernel module integrated into 3.3 and
+    later.  Closes: #684057.
+
+ -- Ben Pfaff <pfaffben@debian.org>  Mon, 06 Aug 2012 16:59:01 -0700
+
+openvswitch (1.4.2+git20120612-8) unstable; urgency=low
+
+  * Apply further patches to fix bugs resulting from moving
+    /etc/openvswitch/conf.db to /var/lib/openvswitch in -7.
+    
+    This required applying the following bug fix patches:
+
+    bug-681880-3-Make-the-location-of-the-database-separately-configu.patch
+    bug-681880-4-tests-Slightly-generalize-utility-function-tests.patch
+    bug-681880-5-util-New-function-follow_symlinks.patch
+    bug-681880-6-lockfile-Be-more-forgiving-about-lockfiles-for-symli.patch
+    bug-681880-7-ovsdb-Do-not-replace-symlinks-by-regular-files-durin.patch
+    bug-681880-8-Fix-a-typo-in-commit-f973f2af2.patch
+    bug-681880-9-dirs-dbdir-default-must-be-based-on-sysconfdir.patch
+
+  * debian/rules: Configure /var/lib/openvswitch as the database directory
+    instead of working through symlinks.  (The symlinks are still created
+    for compatibility with people and existing software that are
+    accustomed to seeing the database in its original location, but the
+    Debian packages themselves never use the symlinks.)
+
+  * debian/openvswitch-switch.postrm: Also remove
+    /ec/openvswitch/system-id.conf and conf.db backups on purge.
+
+  * utilities/ovs-pki.in: Use mode 0700 instead of 0733 for
+    openvswitch-pki "incoming" directory, by applying
+    bug-683665-use-mode-700-for-pki-incoming-dir.patch.  See the patch for
+    complete rationale.  Closes: #683665.  Thanks to Andreas Beckmann
+    <debian@abeckmann.de> for reporting this bug.
+
+  * debian/openvswitch-pki.postinst: Change mode of existing "incoming"
+    directories to 0700 at configure time (see above).
+
+ -- Ben Pfaff <pfaffben@debian.org>  Wed, 01 Aug 2012 11:20:21 -0700
+
+openvswitch (1.4.2+git20120612-7) unstable; urgency=low
+
+  * Move /etc/openvswitch/conf.db to /var/lib/openvswitch, using symlinks.
+    Closes: #681880.  Thanks to Bastian Blank <waldi@debian.org> for
+    reporting this bug.
+    
+    This required applying the following bug fix patches:
+
+    bug-681880-1-lockfile-Fix-hang-locking-through-a-dangling-symlink.patch
+    bug-681880-2-ovsdb-Make-ovsdb-tool-create-work-through-a-dangling.patch
+
+  * Start the rest of OVS if bridge compatibility is enabled but the
+    kernel bridge module cannot be loaded.  Closes: #681955.  Thanks to
+    Bastian Blank <waldi@debian.org> for reporting this bug.
+    
+    This was fixed by applying the following bug fix patch:
+
+    bug-681955-ovs-ctl-Start-the-rest-of-Open-vSwitch.patch    
+
+ -- Ben Pfaff <pfaffben@debian.org>  Fri, 27 Jul 2012 12:36:03 -0700
+
+openvswitch (1.4.2+git20120612-6) unstable; urgency=low
+
+  * utilities/automake.mk: Fix duplicate mention of ovs-vsctl in
+    bin_PROGRAMS and bin_SCRIPTS; it should only have been in the former.
+    Closes: #682384.  Thanks to Bastian Blank <waldi@debian.org> for
+    reporting this bug.
+
+ -- Ben Pfaff <pfaffben@debian.org>  Mon, 23 Jul 2012 09:46:41 -0700
+
+openvswitch (1.4.2+git20120612-5) unstable; urgency=low
+
+  * debian/openvswitch-controller.postrm: Remove configuration files in
+    /etc/openvswitch-controller on purge.  Closes: #682187.  Thanks to
+    Andreas Beckmann <debian@abeckmann.de> for reporting this bug.
+
+ -- Ben Pfaff <pfaffben@debian.org>  Fri, 20 Jul 2012 22:33:19 -0700
+
+openvswitch (1.4.2+git20120612-4ubuntu1) quantal; urgency=low
+
+  * Merge from Debian unstable.  Remaining changes:
+    - d/control: Disable openvswitch-datapath-dkms package.
+    - d/patches/kernel_3.5_support.patch: Fix openvswitch-switch startup
+      with 3.5 kernel module name, allowing use of openvswitch without
+      openvswitch-datapath-dkms.
+
+ -- James Page <james.page@ubuntu.com>  Thu, 19 Jul 2012 08:51:47 +0100
+
+openvswitch (1.4.2+git20120612-4) unstable; urgency=low
+
+  * debian/openvswitch-switch.init: Do not modify iptables rules.  Closes:
+    #680537.  Thanks to Bastian Blank <waldi@debian.org> for reporting
+    this bug.
+
+ -- Ben Pfaff <pfaffben@debian.org>  Mon, 16 Jul 2012 12:56:37 -0700
+
+openvswitch (1.4.2+git20120612-3ubuntu1) quantal; urgency=low
+
+  * Merge from Debian unstable.  Remaining changes:
+    - d/control: Disable openvswitch-datapath-dkms package.
+    - d/patches/kernel_3.5_support.patch: Fix openvswitch-switch startup
+      with 3.5 kernel module name, allowing use of openvswitch without
+      openvswitch-datapath-dkms.
+
+ -- James Page <james.page@ubuntu.com>  Mon, 16 Jul 2012 14:48:43 +0100
+
+openvswitch (1.4.2+git20120612-3) unstable; urgency=low
+
+  * debian/control: Add "netbase" dependency to ensure that /etc/protocols
+    is available.  Closes: #680537.  Thanks to Bastian Blank <waldi@debian.org>
+    for reporting this bug.
+
+ -- Ben Pfaff <pfaffben@debian.org>  Mon, 09 Jul 2012 09:50:03 -0700
+
+openvswitch (1.4.2+git20120612-2ubuntu2) quantal; urgency=low
+
+  * Disable openvswitch-datapath-dkms package (LP: #1018265); it's not
+    compatible with the 3.5 kernel (which provides the openvswitch module)
+    and if users really required the brcompat module and are using an older
+    kernel then they can use openvswitch-datapath-source.
+
+ -- James Page <james.page@ubuntu.com>  Wed, 11 Jul 2012 13:00:58 +0100
+
+openvswitch (1.4.2+git20120612-2ubuntu1) quantal; urgency=low
+
+  * Fix openvswitch-switch startup with 3.5 kernel module name, allowing
+    use of openvswitch without openvswitch-datapath-dkms (LP: #1021078):
+    - d/patches/kernel_3.5_support.patch: Cherry picked patch from upstream
+      VCS to align module naming with openvswitch module in 3.5 kernel.
+
+ -- James Page <james.page@ubuntu.com>  Mon, 09 Jul 2012 22:01:41 +0100
+
+openvswitch (1.4.2+git20120612-2) unstable; urgency=low
+
+  * Apply upstream commit that enables DKMS to automatically build for the
+    running kernel, which seems to be common practice in DMS packaging
+    (launchpad bug #962189)
+
+ -- Ben Pfaff <pfaffben@debian.org>  Tue, 19 Jun 2012 09:40:53 -0700
+
+openvswitch (1.4.2+git20120612-1) unstable; urgency=low
+
+  * New upstream version fixing the following bugs:
+    o Crash fixes:
+      - ofproto: Fix use after free in ofoperation_complete().
+      - odp-util: Update ODPUTIL_FLOW_KEY_BYTES for current kernel flow format.
+      - datapath: Check correct return value from skb_gso_segment().
+    o Possible serious malfunctions:
+      - dpif-netdev: allow for proper destruction of netdev datapaths.
+      - datapath: Validation of IPv6 set port action uses IPv4 header.
+    o Rare annoying corner case:
+      - odp-util: Fix parsing of actions encapsulated within "sample" actions.
+    o Bugs with unknown impact:
+      - Correctly set destination MAC in mf_set_flow_value().
+    o OpenFlow controller compatibility:
+      - Allow OFPP_CONTROLLER as the in_port for packet-out messages.
+
+ -- Ben Pfaff <pfaffben@debian.org>  Tue, 12 Jun 2012 10:25:08 -0700
+
+openvswitch (1.4.0+git20120426-1) unstable; urgency=low
+
+  * New upstream release fixing the following bugs:
+    o Broken log rotation.
+    o Use-after-free error when ports disappear.
+    o Minor memory leaks.
+    o Testsuite failures on big-endian architectures.
+
+ -- Ben Pfaff <pfaffben@debian.org>  Thu, 26 Apr 2012 13:46:55 -0700
+
+openvswitch (1.4.0+git20120321-1) unstable; urgency=low
+
+  * New upstream version including:
+    o Features:
+      - ovs-vsctl: Allow "fake bridges" to be created for VLAN 0.
+      - vswitchd: Make the MAC entry aging time configurable.
+      - mac-learning: Increase MAC learning timeout to 300 seconds.
+    o Bug fixes:
+      - netdev-linux: Fix use-after-free when netdev_dump_queues() deletes
+        queues.
+      - netlink-socket: Increase Netlink socket receive buffer size.
+      - ofproto: Fix code that keeps track of MTU.
+      - ovs-monitor-ipsec: Detect correctly IPSEC configuration changes
+      - bond: Incorrectly reported an error in appctl.
+      - socket-util: Unlink Unix domain sockets that bind but fail to connect.
+      - bridge: Remove unwanted ports at time of ofproto creation.
+      - dpif-linux: Make dpif_linux_port_query_by_name() query only one
+        datapath.
+      - ofproto-dpif: Cleanup STP on ports when disabled on their bridge.
+      - configure: Try to extract kernel source directory from build Makefile.
+      - vswitchd: Always configure a default queue for QoS.
+      - ofproto-dpif: Don't output to in_port even if in_port is OFPP_LOCAL.
+      - sflow_agent: Use snprintf() in place of sprintf().
+    o Packaging:
+      - Move PKI directory to FHS-compliant location.  Closes: #661090.
+        Thanks to Andreas Beckmann <debian@abeckmann.de> for reporting
+        this bug.
+      - Use a different way to avoid failing install without kernel module.
+      - Avoid unit test failure when doing "unofficial" builds.
+      - Bump standards-version to 3.9.3.
+      - Remove some useless files from the dkms package.
+      - Clean .pyc files in "clean" target.
+      - Remove po-debconf build dependency.
+      - Build-depend on python-all to pull in all Python versions.
+      - Add missing ${python:Depends} to openvswitch-test package.
+      - Improve long descriptions so as to better describe the packages.
+      - Bump debhelper compat level to 8 and make build-depends consistent.
+      - Fix exit status of openvswitch-switch init script "status" command.
+      - Use provided kernel source dir instead of host kernel version.
+      - Do not run "make" if "configure" fails during DKMS build.
+      - Look in /lib/modules instead of /usr/src for DKMS kernel sources.
+      - Fix dependencies for openvswitch-datapath-dkms package.
+      - Don't install Python modules for obsolete Python versions.
+      - Add dependency on ${misc:Depends} to openvswitch-test
+    o Documentation improvements:
+      - ovsdb-doc: Use minus sign in negative numbers in nroff output.
+      - ovsdb-doc: Convert '-' preceding a number as a minus sign, not a
+        hyphen.
+      - ovsdb-doc: Put NAME section into generated manpage.
+      - Fix typo in manpage.
+      - vswitchd: Document behavior of 802.1p priorities with VLAN splinters.
+      - netdev: Fix typo in error message.
+      - INSTALL.Linux: minor typo
+
+  * Many thanks to Thomas Goirand <zigo@debian.org> for contributing many
+    of the packaging fixes listed above.
+
+  * This version fixes most of the lintian errors described in bug
+    #663051, but a few remain, so this upload does not close that bug.  I
+    believe that this upload should be suitable for downgrading that bug's
+    severity.
+
+ -- Ben Pfaff <pfaffben@debian.org>  Wed, 21 Mar 2012 10:00:28 -0700
+
+openvswitch (1.4.0-2+nmu1) unstable; urgency=low
+
+  * Non maintainer upload.
+  * Removes all patches in debian/patches, because they are patching stuff
+  inconditionally in debian/*, and this should be applied by default.
+  * Uses the correct ${kernel_source_dir} in debian/dkms.conf.in, so that
+  the kernel module builds as expected (Closes: #659685).
+
+ -- Thomas Goirand <zigo@debian.org>  Thu, 08 Mar 2012 08:46:24 +0000
+
+openvswitch (1.4.0-2) unstable; urgency=low
+
+  * Use explicit DKMS variable for kernel source directory
+    - 0001-debian-Fix-dependencies-for-openvswitch-datapath-dkm.patch
+    - 0002-debian-Look-in-lib-modules-instead-of-usr-src-for-DK.patch
+    - 0001-debian-Use-provided-kernel-source-dir.patch
+    - 0001-debian-Do-not-run-make-if-configure-fails-during-DKM.patch
+    - (closes: #659685)
+  * Don't install Python modules for obsolete Python versions
+    - 0001-debian-Don-t-install-Python-modules-for-obsolete-Pyt.patch
+
+ -- Simon Horman <horms@debian.org>  Tue, 14 Feb 2012 11:43:13 +0900
+
+openvswitch (1.4.0-1) unstable; urgency=low
+  [ Open vSwitch team ]
+  * New upstream version
+    - Compatible with Open vSwitch kernel module included in Linux 3.3.
+    - New "VLAN splinters" feature to work around buggy device drivers
+      in old Linux versions.  (This feature is deprecated.  When
+      broken device drivers are no longer in widespread use, we will
+      delete this feature.)  See ovs-vswitchd.conf.db(5) for more
+      information.
+    - OpenFlow:
+       - Added ability to match on IPv6 flow label through NXM.
+       - Added ability to match on ECN bits in IPv4 and IPv6 through NXM.
+       - Added ability to match on TTL in IPv4 and IPv6 through NXM.
+       - Added ability to modify ECN bits in IPv4.
+       - Added ability to modify TTL in IPv4.
+    - ovs-vswitchd:
+       - Don't require the "normal" action to use mirrors.  Traffic will
+         now be properly mirrored for any flows, regardless of their
+         actions.
+       - Track packet and byte statistics sent on mirrors.
+    - ovs-appctl:
+      - New "fdb/flush" command to flush bridge's MAC learning table.
+    - ovs-test:
+      - A new distributed testing tool that allows one to diagnose performance
+        and connectivity issues. This tool currently is not included in RH or
+        Xen packages.
+    - RHEL packaging now supports integration with Red Hat network scripts.
+    - Debian: Depend on python (>= 2.7) | python-argparse instead of
+              python-argparse to avoid pulling in python2.6
+              (closes: #653645)
+
+ -- Open vSwitch team <dev@openvswitch.org>  Mon, 30 Jan 2012 23:36:00 +0000
+
+openvswitch (1.3.0-1) unstable; urgency=low
+  [ Open vSwitch team ]
+  * New upstream version
+    - OpenFlow:
+      - Added an OpenFlow extension which allows the "output" action to accept
+        NXM fields.
+      - Added an OpenFlow extension for flexible learning.
+      - Bumped number of NXM registers from four to five.
+    - ovs-appctl:
+      - New "version" command to determine version of running daemon.
+      - If no argument is provided for "cfm/show", displays detailed
+        information about all interfaces with CFM enabled.
+      - If no argument is provided for "lacp/show", displays detailed
+        information about all ports with LACP enabled.
+    - ovs-vswitchd:
+      - The software switch now supports 255 OpenFlow tables, instead
+        of just one.  By default, only table 0 is consulted, but the
+        new NXAST_RESUBMIT_TABLE action can look up in additional
+        tables.  Tables 128 and above are reserved for use by the
+        switch itself; please use only tables 0 through 127.
+      - Add support for 802.1D spanning tree (STP).
+    - Fragment handling extensions:
+      - New OFPC_FRAG_NX_MATCH fragment handling mode, in which L4
+        fields are made available for matching in fragments with
+        offset 0.
+      - New NXM_NX_IP_FRAG match field for matching IP fragments (usable
+        via "ip_frag" in ovs-ofctl).
+      - New ovs-ofctl "get-frags" and "set-frags" commands to get and set
+        fragment handling policy.
+    - CAPWAP tunneling now supports an extension to transport a 64-key.  By
+      default it remains compatible with the old version and other
+      standards-based implementations.
+    - Flow setups are now processed in a round-robin manner across ports
+      to prevent any single client from monopolizing the CPU and conducting
+      a denial of service attack.
+    - Added support for native VLAN tagging.  A new "vlan_mode"
+      parameter can be set for "port". Possible values: "access",
+      "trunk", "native-tagged" and "native-untagged".
+    - test-openflowd has been removed.  Please use ovs-vswitchd instead.
+
+ -- Open vSwitch team <dev@openvswitch.org>  Mon, 09 Dec 2011 23:36:00 +0000
+
+openvswitch (1.2.0-1) unstable; urgency=low
+
+  [ Open vSwitch team ]
+  * New upstream version
+    - New "ofproto" abstraction layer to ease porting to hardware
+      switching ASICs.
+    - Packaging for Red Hat Enterprise Linux 5.6 and 6.0.
+    - Datapath support for Linux kernels up to 3.0.
+    - OpenFlow:
+      - New "bundle" and "bundle_load" action extensions.
+    - Database:
+      - Implement table unique constraints.
+      - Support cooperative locking between callers.
+    - ovs-dpctl:
+      - New "-s" option for "show" command prints packet and byte
+        counters for each port.
+    - ovs-ofctl:
+      - New "--readd" option for "replace-flows".
+    - ovs-vsctl:
+      - New "show" command to print an overview of configuration.
+      - New "comment" command to add remark that explains intentions.
+    - ovs-brcompatd has been rewritten to fix long-standing bugs.
+    - ovs-openflowd has been renamed test-openflowd and moved into the
+      tests directory.  Its presence confused too many users.  Please
+      use ovs-vswitchd instead.
+    - New ovs-benchmark utility to test flow setup performance.
+    - A new log level "off" has been added.  Configuring a log facility
+      "off" prevents any messages from being logged to it.  Previously,
+      "emer" was effectively "off" because no messages were ever logged at
+      level "emer".  Now, errors that cause a process to exit are logged
+      at "emer" level.
+    - "configure" option --with-l26 has been renamed --with-linux, and
+      --with-l26-source has been renamed --with-linux-source.  The old
+      names will be removed after the next release, so please update
+      your scripts.
+    - The "-2.6" suffix has been dropped from the datapath/linux-2.6 and
+      datapath/linux-2.6/compat-2.6 directories.
+    - Feature removals:
+      - Dropped support for "tun_id_from_cookie" OpenFlow extension.
+        Please use the extensible match extensions instead.
+      - Removed the Maintenance_Point and Monitor tables in an effort
+        to simplify 802.1ag configuration.
+    - Performance and scalability improvements
+    - Bug fixes
+
+ -- Open vSwitch team <dev@openvswitch.org>  Wed, 03 Aug 2011 14:43:00 +0000
+
+openvswitch (1.1.1-1) unstable; urgency=low
+
+  [ Open vSwitch team ]
+  * Bug fixes.
+
+  [ Simon Horman ]
+  * docs: Suppress warning marcro DD not defined
+    (upstream commit 58f870d0)
+  * debian: Make openvswitch depend on Python
+    (upstream commit aa41cb61)
+  * debian: Don't begin openvswitch-pki description with article.
+    (upstream commit bc6bb66)
+  * Debian: Add ${misc:Depends} dependency to python-openvswitch
+  * Debian: Update standards version from 3.9.1 to 3.9.2
+  * Debian: ${source:Version} dependency on python openvswitch
+  * Debian: ${source:Version} dependency for python openvswitch
+  * Switch to dpkg-source 3.0 (quilt) format
+    - For local non-debian/ patches (above)
+
+ -- Simon Horman <horms@debian.org>  Wed, 15 Jun 2011 10:46:15 +0900
+    
+openvswitch (1.1.0-1) unstable; urgency=low
+
+  [ Open vSwitch team ]
+  * New upstream version
+    - Ability to define policies over IPv6
+    - LACP
+    - 802.1ag CCM
+    - Support for extensible match extensions to OpenFlow
+    - QoS:
+      - Support for HFSC qdisc.
+      - Queue used by in-band control can now be configured.
+    - Kernel:
+      - Kernel<->userspace interface has been reworked and should be
+        close to a stable ABI now.
+      - "Port group" concept has been dropped.
+    - GRE over IPSEC tunnels
+    - Bonding:
+      - New active backup bonding mode.
+      - New L4 hashing support when LACP is enabled.
+      - Source MAC hash now includes VLAN field also.
+      - miimon support.
+    - Greatly improved handling of large flow tables
+    - ovs-dpctl:
+      - "show" command now prints full vport configuration.
+      - "dump-groups" command removed since kernel support for
+        port groups was dropped.
+    - ovs-vsctl:
+      - New commands for working with the new Managers table.
+      - "list" command enhanced with new formatting options and --columns
+        option.
+      - "get" command now accepts new --id option.
+      - New "find" command.
+    - ovs-ofctl:
+      - New "queue-stats" command for printing queue stats.
+      - New commands "replace-flows" and "diff-flows".
+      - Commands to add and remove flows can now read from files.
+      - New --flow-format option to enable or disable NXM.
+      - New --more option to increase OpenFlow message verbosity.
+      - Removed "tun-cookie" command, which is no longer useful.
+    - ovs-controller enhancements for testing various features.
+    - New ovs-vlan-test command for testing for Linux kernel driver VLAN
+      bugs.  New ovs-vlan-bug-workaround command for enabling and
+      disabling a workaround for these driver bugs.
+    - OpenFlow support:
+      - "Resubmit" actions now update flow statistics. 
+      - New "register" extension for use in matching and actions, via NXM.
+      - New "multipath" experimental action extension.
+      - New support for matching multicast Ethernet frames, via NXM.
+      - New extension for OpenFlow vendor error codes.
+      - New extension to set the QoS output queue without actually
+        sending to an output port.
+      - Open vSwitch now reports a single flow table, instead of
+        separate hash and wildcard tables.  This better models the
+        current implementation.
+      - New experimental "note" action.
+      - New "ofproto/trace" ovs-appctl command and associated utilities
+        to ease debugging complex flow tables.
+    - Database:
+      - Schema documentation now includes an entity-relationship diagram.
+      - The database is now garbage collected.  In most tables,
+        unreferenced rows will be deleted automatically.
+      - Many tables now include statistics updated periodically by
+        ovs-vswitchd or ovsdb-server.
+      - Every table now has an "external-ids" column for use by OVS
+        integrators.
+      - There is no default controller anymore.  Each bridge must have its
+        controller individually specified.
+      - The "fail-mode" is now a property of a Bridge instead of a Controller.
+      - New versioning and checksum features.
+      - New Managers table and manager_options column in Open_vSwitch table
+        for specifying managers.  The old "managers" column in the
+        Open_vSwitch table has been removed.
+      - Many "name" columns are now immutable.
+    - Feature removals:
+      - Dropped support for XenServer pre-5.6.100.
+      - Dropped support for Linux pre-2.6.18.
+      - Dropped controller discovery support.
+      - Dropped "ovs-ofctl status" and the OpenFlow extension that it used.
+        Statistics reporting in the database is a rough equivalent.
+      - Dropped the "corekeeper" package (now separate, at
+        http://openvswitch.org/cgi-bin/gitweb.cgi?p=corekeeper).
+    - Performance and scalability improvements
+    - Bug fixes
+
+  [ Simon Horman ]
+  * Add the following fixes from upstream branch-1.1
+    - 7f1aca9 dpif-linux: Avoid logging error on ENOENT in
+              dpif_linux_is_internal_device().
+    - 8996f83 dpif-linux: Avoid segfault on netdev_get_stats() without kernel
+              module.
+    - 002d4a3 vswitch: Improve schema documentation.
+    - 58bd294 cfm: Fix broken fault logic.
+    - c042664 bridge: Run once before configuring CFM.
+   * Switch to dpkg-source 3.0 (quilt) format
+
+ -- Simon Horman <horms@debian.org>  Wed, 27 Apr 2011 17:11:10 +0900
+
+openvswitch (1.1.0~pre2.g2.ea763e0e-1) unstable; urgency=low
+
+  * Git snapshot, including
+    - tests: Fix Y2011 bug in testsuite
+      (closes: #609506)
+
+ -- Simon Horman <horms@debian.org>  Wed, 12 Jan 2011 08:34:35 +0900
+
+openvswitch (1.1.0~pre2.g1.bbe8d06e-1) unstable; urgency=low
+
+  * Git snaptshot
+
+ -- Simon Horman <horms@debian.org>  Thu, 06 Jan 2011 11:11:55 +0900
+
+openvswitch (1.1.0~pre2-5) unstable; urgency=low
+
+  * Open vSwitch only works on Linux so set
+    the Architecture of binary packages to linux-any accordingly
+
+ -- Simon Horman <horms@debian.org>  Tue, 23 Nov 2010 07:55:19 +0900
+
+openvswitch (1.1.0~pre2-4) unstable; urgency=low
+
+  * Add procps to Build-Depends
+    (closes: #602891)
+
+ -- Simon Horman <horms@debian.org>  Tue, 16 Nov 2010 06:46:17 +0900
+
+openvswitch (1.1.0~pre2-3) unstable; urgency=low
+
+  * Remove the corekeeper package as it isn't strongly related
+    to Open vSwitch. It has subsequently been broken off into
+    a separate source repository and may be uploaded as its
+    own debian source package.
+    http://openvswitch.org/cgi-bin/gitweb.cgi?p=corekeeper;a=summary
+    (closes: #602946)
+  * Avoid the use of long socket names.
+    (closes: #602891, closes: #602911)
+
+ -- Simon Horman <horms@debian.org>  Thu, 11 Nov 2010 06:35:05 +0900
+
+openvswitch (1.1.0~pre2-2) unstable; urgency=low
+
+  * Clarify licensing of files in xenserver/
+
+ -- Simon Horman <horms@debian.org>  Thu, 23 Sep 2010 10:56:18 +0900
+
+openvswitch (1.1.0~pre2-1) unstable; urgency=low
+
+  * New upstream version
+    - Bug fixes
+
+ -- Simon Horman <horms@debian.org>  Wed, 15 Sep 2010 18:28:59 +0900
+
+openvswitch (1.1.0~pre1-1) unstable; urgency=low
+
+  * New upstream version
+    - OpenFlow 1.0 slicing (QoS) functionality
+    - Python bindings for configuration database (no write support)
+    - Performance and scalability improvements
+    - Bug fixes
+
+ -- Open vSwitch team <dev@openvswitch.org>  Tue, 31 Aug 2010 23:20:00 +0000
+
+openvswitch (1.0.1-1) unstable; urgency=low
+
+  * New upstream version.
+
+ -- Open vSwitch team <dev@openvswitch.org>  Mon, 17 May 2010 10:36:00 +0000
+
