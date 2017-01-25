@@ -11,32 +11,23 @@ dpdk=$3
 dpdk_socket_mem=${4:-''}
 pmd_cpu_mask=${5:-'2'}
 
+ovs="ovs-dpdk.tar.gz"
+if [ $nsh = 'true' ]; then
+    ovs="ovs-nsh-dpdk.tar.gz"
+fi
+
 apt-get install -y --allow-unauthenticated dkms
 
-if [ $nsh = 'true' ]
-then
-    curl  http://$host:8080/plugins/fuel-plugin-ovs-1.0/repositories/ubuntu/ovs-nsh-dpdk.tar.gz | tar -xzv
-    dpkg -i openvswitch-datapath-dkms_2.6.1-1.nsh_all.deb
-    dpkg -i openvswitch-common_2.6.1-1.nsh_amd64.deb
-    dpkg -i openvswitch-switch_2.6.1-1.nsh_amd64.deb
-    dpkg -i python-openvswitch_2.6.1-1.nsh_all.deb
-    if [ $dpdk = 'true' ]
-    then
-        apt-get install -y --allow-unauthenticated dpdk dpdk-dev dpdk-dkms
-        dpkg -i openvswitch-switch-dpdk_2.6.1-1.nsh_amd64.deb
-    fi
-else
-    curl  http://$host:8080/plugins/fuel-plugin-ovs-1.0/repositories/ubuntu/ovs-dpdk.tar.gz | tar -xzv
-    dpkg -i openvswitch-datapath-dkms_2.6.90-1_all.deb
-    dpkg -i openvswitch-common_2.6.90-1_amd64.deb
-    dpkg -i openvswitch-switch_2.6.90-1_amd64.deb
-    dpkg -i python-openvswitch_2.6.90-1_all.deb
-    if [ $dpdk = 'true' ]
-    then
-        apt-get install -y --allow-unauthenticated dpdk dpdk-dev dpdk-dkms
-        dpkg -i openvswitch-switch-dpdk_2.6.90-1_amd64.deb
+curl  http://$host:8080/plugins/fuel-plugin-ovs-1.0/repositories/ubuntu/${ovs} | tar -xzv
+dpkg -i openvswitch-datapath-dkms_*.deb
+dpkg -i openvswitch-common_*.deb
+dpkg -i openvswitch-switch_*.deb
+dpkg -i python-openvswitch_*.deb
 
-    fi
+if [ $dpdk = 'true' ]
+then
+    apt-get install -y --allow-unauthenticated dpdk dpdk-dev dpdk-dkms
+    dpkg -i openvswitch-switch-dpdk_*.deb
 fi
 
 if [[ $dpdk = 'true' && -n $dpdk_socket_mem ]]
@@ -51,3 +42,5 @@ then
 
     service openvswitch-switch restart
 fi
+
+rm -rf $INSTALL_HOME

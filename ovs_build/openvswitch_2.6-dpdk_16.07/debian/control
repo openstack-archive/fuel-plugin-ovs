@@ -27,7 +27,7 @@ Homepage: http://openvswitch.org/
 XS-Testsuite: autopkgtest
 
 Package: openvswitch-switch-dpdk
-Architecture: i386 amd64
+Architecture: i386 amd64 arm64
 Depends: dpdk,
          openvswitch-switch (>= 2.4.0),
          ${misc:Depends},
