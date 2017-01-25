@@ -7,6 +7,7 @@ OVS_VER=${OVS_VER:-2.6.1}
 BUILD_DEST=${BUILD_DEST:-/deb}
 BUILD_SRC="$(dirname `readlink -f $0`)"
 BUILD_HOME=${BUILD_HOME:-/tmp/ovs-dpdk}
+DEB_ARCH="$(dpkg --print-architecture)"
 
 export DEB_BUILD_OPTIONS='parallel=8 nocheck'
 
@@ -103,4 +104,4 @@ debian/rules build; fakeroot debian/rules binary
 
 cp -r ${BUILD_HOME}/*.deb ${BUILD_HOME}/deb
 cd ${BUILD_HOME}/deb
-tar czvf ${BUILD_DEST}/ovs-nsh-dpdk.tar.gz .;
+tar czvf ${BUILD_DEST}/ovs-nsh-dpdk_${DEB_ARCH}.tar.gz .;

@@ -10,10 +10,11 @@ nsh=$2
 dpdk=$3
 dpdk_socket_mem=${4:-''}
 pmd_cpu_mask=${5:-'2'}
+deb_arch=$(dpkg --print-architecture)
 
-ovs="ovs-dpdk.tar.gz"
+ovs="ovs-dpdk_${deb_arch}.tar.gz"
 if [ $nsh = 'true' ]; then
-    ovs="ovs-nsh-dpdk.tar.gz"
+    ovs="ovs-nsh-dpdk_${deb_arch}.tar.gz"
 fi
 
 apt-get install -y --allow-unauthenticated dkms
