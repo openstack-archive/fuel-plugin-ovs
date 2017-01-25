@@ -10,13 +10,29 @@ BUILD_HOME=${BUILD_HOME:-/tmp/ovs-dpdk}
 
 export DEB_BUILD_OPTIONS='parallel=8 nocheck'
 
+function debian_build() {
+  if [ -f "${BUILD_SRC}/build_debian_source" ]; then
+    dpkg-source -b .
+    cp -f ../*.{dsc,xz} ${BUILD_HOME}/deb
+  fi
+  debian/rules build; fakeroot debian/rules binary
+}
+
+function debian_src_prepare_ovs() {
+  if [ -f "${BUILD_SRC}/build_debian_source" ]; then
+    suffix="${OVS_VER}.orig.tar.xz"
+    tar cJf ../openvswitch_${suffix} --exclude='./debian' .
+    cd ..; ln -sf openvswitch_${suffix} openvswitch-dpdk_${suffix}; cd -
+  fi
+}
+
 sudo apt-get -y --force-yes install devscripts dpkg-dev git wget dkms
 
 rm -rf ${BUILD_HOME}; mkdir -p ${BUILD_HOME}/deb
 
 cd ${BUILD_HOME}
-wget -c http://fast.dpdk.org/rel/dpdk-16.07.tar.xz
-xz -d dpdk-16.07.tar.xz; tar xvf dpdk-16.07.tar
+wget -c http://fast.dpdk.org/rel/dpdk-16.07.tar.xz -O dpdk_16.07.orig.tar.xz
+tar xJvf dpdk_16.07.orig.tar.xz
 cd dpdk-16.07
 cp -r ${BUILD_SRC}/dpdk_16.07.fuel/debian .
 cat << EOF > debian/changelog
@@ -43,7 +59,7 @@ sudo apt-get install -y --force-yes debhelper \
                python-sphinx  \
                texlive-fonts-recommended  \
                texlive-latex-extra
-debian/rules build; fakeroot debian/rules binary
+debian_build
 
 cd ${BUILD_HOME}
 sudo apt-get install -y --force-yes hwdata
@@ -71,12 +87,16 @@ sudo apt-get install -y --force-yes autoconf \
                python-six
 
 git clone https://github.com/openvswitch/ovs.git
-cd ovs; git checkout ${OVS_COMMIT}; rm -rf .git
+cd ovs; git checkout ${OVS_COMMIT}; rm -rf .git; debian_src_prepare_ovs
+mkdir -p debian/patches; mkdir -p .pc
 PATCHES=$(cd ${BUILD_SRC}/ovs_nsh_patches/v2.6.1/; echo *patch)
 for patch in ${PATCHES}
 do
-    patch -p1 < ${BUILD_SRC}/ovs_nsh_patches/v2.6.1/${patch}
+    echo "${patch}" >> debian/patches/series
+    cp ${BUILD_SRC}/ovs_nsh_patches/v2.6.1/${patch} debian/patches/
+    patch -p1 < debian/patches/${patch}
 done
+cp debian/patches/series .pc/applied-patches
 cd ${BUILD_HOME}; cp -r ovs ovs-dpdk
 
 cd ovs-dpdk
@@ -89,7 +109,7 @@ openvswitch-dpdk (${OVS_VER}-1.nsh) unstable; urgency=low
  -- Open vSwitch team <dev@openvswitch.org>  $(date --rfc-2822)
 EOF
 
-debian/rules build; fakeroot debian/rules binary
+debian_build
 
 cd ${BUILD_HOME}/ovs
 cat << EOF > debian/changelog
@@ -99,7 +119,7 @@ openvswitch (${OVS_VER}-1.nsh) unstable; urgency=low
 
  -- Open vSwitch team <dev@openvswitch.org>  $(date --rfc-2822)
 EOF
-debian/rules build; fakeroot debian/rules binary
+debian_build
 
 cp -r ${BUILD_HOME}/*.deb ${BUILD_HOME}/deb
 cd ${BUILD_HOME}/deb
