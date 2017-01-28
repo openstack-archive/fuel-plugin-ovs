@@ -10,6 +10,7 @@ BUILD_HOME=${BUILD_HOME:-/tmp/ovs-dpdk}
 
 export DEB_BUILD_OPTIONS='parallel=8 nocheck'
 
+sudo apt-get update
 sudo apt-get -y --force-yes install devscripts dpkg-dev git wget dkms
 
 rm -rf ${BUILD_HOME}; mkdir -p ${BUILD_HOME}/deb
