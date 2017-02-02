@@ -25,7 +25,7 @@ function build_pkg {
       cp -r ${DEB_DIR}/*  ${DIR}/repositories/ubuntu/
 
       rm -rf ${DEB_DIR};  mkdir -p ${DEB_DIR}; chmod 777 ${DEB_DIR};
-      sudo docker run -v ${DEB_DIR}:/deb -t  ovs_build /ovs_build/build-ovs-nsh-dpdk.sh
+      sudo docker run -v ${DEB_DIR}:/deb -t  ovs_build /ovs_build/build-ovs-nsh.sh
       cp -r ${DEB_DIR}/*  ${DIR}/repositories/ubuntu/
       rm -rf ${DEB_DIR}
 
