@@ -8,13 +8,11 @@ cd $INSTALL_HOME
 host=$1
 nsh=$2
 dpdk=$3
-dpdk_socket_mem=${4:-''}
-pmd_cpu_mask=${5:-'2'}
 deb_arch=$(dpkg --print-architecture)
 
 ovs="ovs-dpdk_${deb_arch}.tar.gz"
 if [ $nsh = 'true' ]; then
-    ovs="ovs-nsh-dpdk_${deb_arch}.tar.gz"
+    ovs="ovs-nsh_${deb_arch}.tar.gz"
 fi
 
 apt-get install -y --allow-unauthenticated dkms
@@ -29,19 +27,6 @@ if [ $dpdk = 'true' ]
 then
     apt-get install -y --allow-unauthenticated dpdk dpdk-dev dpdk-dkms
     dpkg -i openvswitch-switch-dpdk_*.deb
-fi
-
-if [[ $dpdk = 'true' && -n $dpdk_socket_mem ]]
-then
-    #Set to 0, dpdk init script mount hugepages but don't change current allocation
-    sed -i "s/[# ]*\(NR_2M_PAGES=\).*/\10/" /etc/dpdk/dpdk.conf
-    service dpdk start
-
-    ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-init=true
-    ovs-vsctl --no-wait set Open_vSwitch . other_config:dpdk-socket-mem="$dpdk_socket_mem"
-    ovs-vsctl --no-wait set Open_vSwitch . other_config:pmd-cpu-mask="$pmd_cpu_mask"
-
-    service openvswitch-switch restart
 fi
 
 rm -rf $INSTALL_HOME
