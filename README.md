@@ -7,7 +7,7 @@ Openvswitch plugin
 Overview
 --------
 
-Fuel plugin fuel-plugin-ovs is developed to deploy OVS with NSH + DPDK
+Fuel plugin fuel-plugin-ovs is developed to deploy OVS with NSH or OVS with DPDK
 
 Requirements
 ------------

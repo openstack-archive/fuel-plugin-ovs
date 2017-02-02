@@ -1,9 +1,8 @@
 # get options
-$master_ip      = hiera('master_ip')
 
 if $operatingsystem == 'Ubuntu' {
     exec { 'update flavors':
-        command => "curl http://${master_ip}:8080/plugins/fuel-plugin-ovs-1.0/deployment_scripts/update_flavors.sh | bash -s",
+        command => "/etc/fuel/plugins/fuel-plugin-ovs-1.0/update_flavors.sh",
         path    => '/usr/bin:/usr/sbin:/bin:/sbin',
     }
 } elsif $operatingsystem == 'CentOS' {
