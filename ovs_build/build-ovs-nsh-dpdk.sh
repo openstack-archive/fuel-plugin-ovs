@@ -26,7 +26,7 @@ dpdk (16.07-0ubuntu5~u1604+fuel10) xenial; urgency=low
   * Rebuild debian package
   * update librte-eal2.symbols
 
- -- Ruijing Guo <ruijing.guo@intel.com> $(date --rfc-2822)
+ -- Ruijing Guo <ruijing.guo@intel.com>  $(date --rfc-2822)
 EOF
 
 # copy from debian/control

@@ -3,9 +3,15 @@
 set -eux
 
 BUILD_FOR=${BUILD_FOR:-ubuntu}
+BUILD_ARCH="$(dpkg --print-architecture)"
 DIR="$(dirname `readlink -f $0`)"
 
 function build_pkg {
+  case ${BUILD_ARCH} in
+    arm64)
+      sed -i -e "s|FROM ubuntu|FROM aarch64/ubuntu|g" ovs_build/Dockerfile
+      ;;
+  esac
   case $1 in
     ubuntu)
       rm -rf ${DIR}/repositories/ubuntu; mkdir -p ${DIR}/repositories/ubuntu
