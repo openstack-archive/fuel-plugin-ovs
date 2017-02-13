@@ -4,7 +4,7 @@ $master_ip      = hiera('master_ip')
 $ovs_settings   = hiera('fuel-plugin-ovs')
 
 $install_nsh    = $ovs_settings['install_nsh']
-$install_dpdk   = $ovs_settings['install_dpdk']
+$install_dpdk   = 'false'
 
 if $operatingsystem == 'Ubuntu' {
   if (!roles_include(['primary-controller', 'controller'])) or $install_on_controller {

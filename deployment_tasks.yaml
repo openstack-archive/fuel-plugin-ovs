@@ -8,16 +8,3 @@
     puppet_manifest: puppet/manifests/ovs-install.pp
     puppet_modules: puppet/modules:/etc/puppet/modules
     timeout: 720
-
-- id: update_flavors
-  type: puppet
-  version: 2.1.0
-  role: [primary-controller]
-  requires: [post_deployment_start]
-  required_for: [post_deployment_end]
-  condition:
-    yaql_exp: $.get('fuel-plugin-ovs').install_dpdk
-  parameters:
-    puppet_manifest: puppet/manifests/ovs-update-flavors.pp
-    puppet_modules: puppet/modules:/etc/puppet/modules
-    timeout: 720
