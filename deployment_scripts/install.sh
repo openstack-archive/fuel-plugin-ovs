@@ -7,26 +7,16 @@ cd $INSTALL_HOME
 
 host=$1
 nsh=$2
-dpdk=$3
 deb_arch=$(dpkg --print-architecture)
 
-ovs="ovs-dpdk_${deb_arch}.tar.gz"
 if [ $nsh = 'true' ]; then
     ovs="ovs-nsh_${deb_arch}.tar.gz"
-fi
-
-apt-get install -y --allow-unauthenticated dkms
-
-curl  http://$host:8080/plugins/fuel-plugin-ovs-1.0/repositories/ubuntu/${ovs} | tar -xzv
-dpkg -i openvswitch-datapath-dkms_*.deb
-dpkg -i openvswitch-common_*.deb
-dpkg -i openvswitch-switch_*.deb
-dpkg -i python-openvswitch_*.deb
-
-if [ $dpdk = 'true' ]
-then
-    apt-get install -y --allow-unauthenticated dpdk dpdk-dev dpdk-dkms
-    dpkg -i openvswitch-switch-dpdk_*.deb
+    apt-get install -y --allow-unauthenticated dkms
+    curl  http://$host:8080/plugins/fuel-plugin-ovs-1.0/repositories/ubuntu/${ovs} | tar -xzv
+    dpkg -i openvswitch-datapath-dkms_*.deb
+    dpkg -i openvswitch-common_*.deb
+    dpkg -i openvswitch-switch_*.deb
+    dpkg -i python-openvswitch_*.deb
 fi
 
 rm -rf $INSTALL_HOME
