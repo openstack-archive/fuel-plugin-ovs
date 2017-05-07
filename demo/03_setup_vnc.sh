@@ -4,6 +4,7 @@ echo "123456\n123456\n" | vncpasswd
 
 cat << EOF > ~/.vnc/xstartup
 #!/bin/bash
+export LC_ALL="en_US.UTF-8"
 DESK_TYPE=gnome
 export XKL_XMODMAP_DISABLE=1
 unset SESSION_MANAGER
