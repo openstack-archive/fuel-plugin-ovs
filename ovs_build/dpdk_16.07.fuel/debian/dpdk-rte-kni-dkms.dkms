@@ -1,7 +1,0 @@
-PACKAGE_NAME="dpdk-rte-kni"
-PACKAGE_VERSION="#MODULE_VERSION#"
-BUILT_MODULE_NAME[0]="rte_kni"
-MAKE="source /usr/share/dpdk/dpdk-sdk-env.sh; make MODULE_CFLAGS='-I/usr/include/dpdk -include /usr/include/dpdk/rte_config.h -I$source_tree/dpdk-rte-kni-#MODULE_VERSION#/ethtool/ixgbe -I$source_tree/dpdk-rte-kni-#MODULE_VERSION#/ethtool/igb'"
-CLEAN="source /usr/share/dpdk/dpdk-sdk-env.sh; make clean"
-DEST_MODULE_LOCATION[0]="/updates/dkms"
-AUTOINSTALL="YES"

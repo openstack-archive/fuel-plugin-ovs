@@ -1,9 +1,0 @@
-librte_pdump.so.1 librte-pdump1 #MINVER#
- DPDK_16.07@DPDK_16.07 16.07~rc1
- rte_pdump_disable@DPDK_16.07 16.07~rc1
- rte_pdump_disable_by_deviceid@DPDK_16.07 16.07~rc1
- rte_pdump_enable@DPDK_16.07 16.07~rc1
- rte_pdump_enable_by_deviceid@DPDK_16.07 16.07~rc1
- rte_pdump_init@DPDK_16.07 16.07~rc1
- rte_pdump_set_socket_dir@DPDK_16.07 16.07~rc1
- rte_pdump_uninit@DPDK_16.07 16.07~rc1

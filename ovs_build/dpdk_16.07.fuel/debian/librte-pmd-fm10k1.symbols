@@ -1,4 +1,0 @@
-librte_pmd_fm10k.so.1 librte-pmd-fm10k1 #MINVER#
- DPDK_2.0@DPDK_2.0 16.04
-# INFO: this library exports no symbols, essentially it is a driver that
-# registers itself on load and is then only driven by callbacks.

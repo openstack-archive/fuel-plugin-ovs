@@ -1,4 +1,0 @@
-librte_pmd_e1000.so.1 librte-pmd-e1000-1 #MINVER#
- DPDK_2.0@DPDK_2.0 16.04
-# INFO: this library exports no symbols, essentially it is a driver that
-# registers itself on load and is then only driven by callbacks.

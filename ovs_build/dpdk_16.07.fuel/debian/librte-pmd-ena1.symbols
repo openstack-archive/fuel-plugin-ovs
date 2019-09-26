@@ -1,4 +1,0 @@
-librte_pmd_ena.so.1 librte-pmd-ena1 #MINVER#
- DPDK_16.04@DPDK_16.04 16.04
-# INFO: this library exports no symbols, essentially it is a driver that
-# registers itself on load and is then only driven by callbacks.

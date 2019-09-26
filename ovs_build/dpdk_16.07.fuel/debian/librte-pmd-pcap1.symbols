@@ -1,4 +1,0 @@
-librte_pmd_pcap.so.1 librte-pmd-pcap1 #MINVER#
- DPDK_2.0@DPDK_2.0 16.04
-# INFO: this library exports no symbols, essentially it is a driver that
-# registers itself on load and is then only driven by callbacks.

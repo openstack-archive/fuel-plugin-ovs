@@ -1,4 +1,0 @@
-librte_pmd_null_crypto.so.1 librte-pmd-null-crypto1 #MINVER#
- DPDK_16.04@DPDK_16.04 16.04
-# INFO: this library exports no symbols, essentially it is a driver that
-# registers itself on load and is then only driven by callbacks.
